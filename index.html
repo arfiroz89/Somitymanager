@@ -1,0 +1,1960 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>সমিতি ম্যানেজার (প্রিমিয়াম এডিশন)</title>
+    <meta name="description" content="ডিজিটাল সমিতি ম্যানেজার — সমবায় সমিতির সঞ্চয়, লেনদেন, বিনিয়োগ ও সদস্য ব্যবস্থাপনার জন্য সম্পূর্ণ বাংলা, নিরাপদ ও অফলাইন-সক্ষম অ্যাপ। খাতা-কলম ছেড়ে আজই আপনার সমিতির হিসাব ডিজিটাল করুন।">
+    <meta property="og:title" content="ডিজিটাল সমিতি ম্যানেজার">
+    <meta property="og:description" content="সমবায় সমিতির সঞ্চয়, লেনদেন, বিনিয়োগ ও সদস্য ব্যবস্থাপনার জন্য সম্পূর্ণ বাংলা ডিজিটাল সমাধান।">
+    <meta property="og:image" content="https://digitalsomity.netlify.app/icons/icon-512x512.png">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://digitalsomity.netlify.app/">
+
+    <!-- ===== মোবাইল ডিবাগ কনসোল (Eruda) ===== -->
+    <!-- শুধু URL-এর শেষে ?debug=1 থাকলেই চালু হবে, সাধারণ ইউজাররা কিছু দেখবে না। -->
+    <!-- ব্যবহার: yoursite.com/index.html?debug=1 দিয়ে ভিজিট করুন, স্ক্রিনে একটা ছোট ফ্লোটিং বাটন আসবে, -->
+    <!-- তাতে চাপ দিয়ে Console ট্যাবে সব console.log/warn/error (যেমন [PhotoSync] লগ) দেখা যাবে। -->
+    <script>
+        (function() {
+            if (location.search.indexOf('debug=1') !== -1) {
+                var s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/eruda';
+                document.head.appendChild(s);
+                s.onload = function() {
+                    eruda.init();
+                    console.log('✅ Eruda ডিবাগ কনসোল চালু হয়েছে — নিচে ডানে রঙিন বাটনে চাপ দিন।');
+                };
+            }
+        })();
+    </script>
+    <!-- ===== Eruda ডিবাগ কনসোল শেষ ===== -->
+
+    <!-- ===== PWA সেটআপ ===== -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a237e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="সমিতি ম্যানেজার">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152x152.png">
+    <!-- ===== PWA সেটআপ শেষ ===== -->
+
+    <link rel="stylesheet" href="style.css?v=46">
+
+    <!-- ===== Font Awesome আইকন — এই লিংকটা আগে মিসিং ছিল, তাই fa-solid ক্লাসের অনেক আইকন
+         (হোম, মেনু সহ আরও কিছু জায়গায়) দেখা যাচ্ছিল না। এখন যোগ করা হলো। ===== -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+    <!-- ===== FIREBASE SDK ===== -->
+    <!--
+      ✅ Firebase SDK লোড হওয়ার পদ্ধতি:
+      app.js ফাইলটি type="module" দিয়ে লোড হয় (নিচে দেখুন)।
+      সেই ফাইলের ভেতরেই Firebase ESM import ব্যবহার করা হয়েছে:
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/..."
+      তাই এখানে আলাদা করে Firebase SDK <script> ট্যাগ লাগবে না।
+      
+      ⚠️ যদি কনসোলে "Firebase: No Firebase App" error দেখেন,
+      তাহলে app.js-এর type="module" ট্যাগটি সঠিকভাবে আছে কিনা নিশ্চিত করুন।
+    -->
+    <!-- ===== FIREBASE SDK শেষ ===== -->
+
+    <!-- ===== ইউটিলিটি ফাংশন (non-module) ===== -->
+
+    <!-- ===== Performance: DNS prefetch ও preconnect ===== -->
+    <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+    <!-- ===== Performance শেষ ===== -->
+
+    <!-- ===== jsPDF ও AutoTable CDN — defer দিয়ে non-blocking লোড ===== -->
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <!-- ===== jsPDF CDN শেষ ===== -->
+    
+</head>
+<body>
+    <!-- ===== লোডিং স্ক্রিন (Firebase init হওয়ার আগে দেখাবে) ===== -->
+    <!-- ✅ রিফ্রেশে instant-show: আগের session থাকলে loading screen এড়িয়ে সরাসরি main-app দেখাও -->
+    <script>
+    (function() {
+        try {
+            if (localStorage.getItem('_sdm_session') === '1') {
+                // পুরানো session আছে — loading screen লুকাও, main-app দেখাও
+                // Firebase verify হলে ঠিকই থাকবে; না হলে login-screen দেখাবে
+                document.addEventListener('DOMContentLoaded', function() {
+                    var ls = document.getElementById('loading-screen');
+                    var ma = document.getElementById('main-app');
+                    if (ls) ls.style.display = 'none';
+                    if (ma) ma.style.display = 'block';
+
+                    // ✅ FIX #4: Firebase থেকে আসল ডেটা লোড হতে ১-২ সেকেন্ড লাগে।
+                    // ততক্ষণ HTML-এ লেখা ডিফল্ট "৳ 0" না দেখিয়ে, গত সেশনের সর্বশেষ
+                    // জানা মান (app.js-এ ক্যাশ করা) সাথে সাথে দেখানো হচ্ছে।
+                    // আসল ডেটা Firestore listener থেকে এলে এটা এমনিতেই ওভাররাইট হয়ে যাবে।
+                    try {
+                        var _cached = localStorage.getItem('_sdm_last_summary');
+                        if (_cached) {
+                            var _s  = JSON.parse(_cached);
+                            var _cih = document.getElementById('cash-in-hand');
+                            var _bb  = document.getElementById('bank-balance');
+                            var _te  = document.getElementById('total-expenses');
+                            var _tm  = document.getElementById('total-members');
+                            var _ts  = document.getElementById('total-savings');
+                            if (_cih && typeof _s.cashInHand === 'number')    _cih.innerText = '৳ ' + _s.cashInHand.toLocaleString();
+                            if (_bb  && typeof _s.bankBalance === 'number')   _bb.innerText  = '৳ ' + _s.bankBalance.toLocaleString();
+                            if (_te  && typeof _s.totalExpenses === 'number') _te.innerText  = '৳ ' + _s.totalExpenses.toLocaleString();
+                            if (_tm  && typeof _s.totalMembers === 'number')  _tm.innerText  = _s.totalMembers;
+                            if (_ts  && typeof _s.totalSavings === 'number')  _ts.innerText  = '৳ ' + _s.totalSavings.toLocaleString();
+                        }
+                    } catch(_e) {}
+                });
+            }
+        } catch(_) {}
+    })();
+    </script>
+    <div id="loading-screen" style="display:flex;min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a237e 0%,#283593 60%,#3949ab 100%);position:fixed;inset:0;z-index:9999;">
+        <div style="text-align:center;">
+            <div style="font-size:3rem;margin-bottom:16px;">🏛</div>
+            <div style="font-size:20px;font-weight:900;color:#fffde7;margin-bottom:4px;letter-spacing:.5px;">ডিজিটাল সমিতি ম্যানেজার</div>
+            <div style="font-size:11px;font-weight:500;color:#c5cae9;margin-bottom:16px;letter-spacing:1px;">DIGITAL SOMITY MANAGER</div>
+            <div style="width:40px;height:40px;border:4px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:fa-spin 0.8s linear infinite;margin:0 auto;"></div>
+            <div id="loading-status-text" style="font-size:12px;color:#c5cae9;margin-top:12px;">লোড হচ্ছে...</div>
+        </div>
+    </div>
+
+    <!-- ===== লগইন / নিবন্ধন স্ক্রিন ===== -->
+    <div id="login-screen" style="display:none;flex-direction:column;min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a237e 0%,#283593 60%,#3949ab 100%);padding:16px;">
+        <div style="background:#fff;border-radius:24px;padding:32px 24px;width:100%;max-width:360px;box-shadow:0 25px 50px -12px rgba(0,0,0,.35);">
+            <div style="text-align:center;margin-bottom:20px;">
+                <div style="font-size:2.5rem;margin-bottom:8px;">🏛</div>
+                <div style="font-weight:900;font-size:19px;color:#1a237e;line-height:1.3;margin-bottom:2px;">ডিজিটাল সমিতি ম্যানেজার</div>
+                <div style="font-size:10px;font-weight:500;color:#64748b;letter-spacing:1.5px;">DIGITAL SOMITY MANAGER</div>
+            </div>
+
+            <!-- ট্যাব বাটন -->
+            <div style="display:flex;background:#f1f5f9;border-radius:12px;padding:4px;margin-bottom:20px;gap:4px;">
+                <button id="tab-login-btn" onclick="showLoginTab()" style="flex:1;padding:8px 0;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;background:#1a237e;color:#fff;transition:.2s;">লগইন</button>
+                <button id="tab-reg-btn" onclick="showRegTab()" style="flex:1;padding:8px 0;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;background:transparent;color:#64748b;transition:.2s;">নিবন্ধন</button>
+            </div>
+
+            <!-- লগইন ফর্ম -->
+            <div id="login-form-body">
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">ইমেইল</label>
+                    <input id="login-email" type="email" placeholder="আপনার ইমেইল লিখুন"
+                        style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:14px;outline:none;box-sizing:border-box;"
+                        onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()"
+                        oninput="this.style.border='1.5px solid #e2e8f0';var e=document.getElementById('login-error');if(e){e.style.color='#e11d48';e.textContent='';}">
+                </div>
+                <div style="margin-bottom:18px;">
+                    <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">পাসওয়ার্ড</label>
+                    <input id="login-pass" type="password" placeholder="পাসওয়ার্ড লিখুন"
+                        style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:14px;outline:none;box-sizing:border-box;"
+                        onkeydown="if(event.key==='Enter')doLogin()">
+                    <div style="text-align:right;margin-top:5px;">
+                        <span onclick="doForgotPassword()"
+                            style="font-size:11px;color:#3949ab;font-weight:600;cursor:pointer;text-decoration:underline;user-select:none;">
+                            পাসওয়ার্ড ভুলে গেছেন?
+                        </span>
+                    </div>
+                </div>
+                <div id="login-error" style="color:#e11d48;font-size:12px;margin-bottom:10px;text-align:center;min-height:18px;"></div>
+                <button id="login-btn" onclick="doLogin()"
+                    style="width:100%;background:linear-gradient(135deg,#1a237e,#3949ab);color:#fff;border:none;border-radius:12px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;">
+                    লগইন করুন
+                </button>
+                <div style="text-align:center;margin-top:12px;font-size:12px;color:#64748b;">
+                    অ্যাকাউন্ট নেই? <span onclick="showRegTab()" style="color:#1a237e;font-weight:700;cursor:pointer;text-decoration:underline;">নিবন্ধন করুন</span>
+                </div>
+            </div>
+
+            <!-- নিবন্ধন ফর্ম -->
+            <div id="reg-form-body" style="display:none;">
+
+                <!-- নিবন্ধন টাইপ সিলেকশন -->
+                <div style="margin-bottom:14px;">
+                    <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:8px;">আপনি কী করতে চান? *</label>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <label id="reg-type-admin-label" style="display:flex;align-items:flex-start;gap:10px;padding:11px 14px;border:2px solid #1a237e;border-radius:12px;cursor:pointer;background:#eef2ff;transition:.2s;">
+                            <input type="radio" name="reg-type" id="reg-type-admin" value="admin" checked
+                                onchange="toggleRegType()"
+                                style="margin-top:2px;accent-color:#1a237e;width:16px;height:16px;flex-shrink:0;">
+                            <span>
+                                <span style="font-size:13px;font-weight:700;color:#1a237e;display:block;">🏛 আমি নতুন সমিতি তৈরি করতে চাই (এডমিন)</span>
+                                <span style="font-size:11px;color:#64748b;">নতুন সমিতি খুলে মালিক হিসেবে পরিচালনা করুন</span>
+                            </span>
+                        </label>
+                        <label id="reg-type-member-label" style="display:flex;align-items:flex-start;gap:10px;padding:11px 14px;border:2px solid #e2e8f0;border-radius:12px;cursor:pointer;background:#f8fafc;transition:.2s;">
+                            <input type="radio" name="reg-type" id="reg-type-member" value="member"
+                                onchange="toggleRegType()"
+                                style="margin-top:2px;accent-color:#059669;width:16px;height:16px;flex-shrink:0;">
+                            <span>
+                                <span style="font-size:13px;font-weight:700;color:#059669;display:block;">🤝 আমি বিদ্যমান সমিতিতে জয়েন করতে চাই (সদস্য/কর্মী)</span>
+                                <span style="font-size:11px;color:#64748b;">এডমিনের দেওয়া সমিতি কোড ব্যবহার করুন</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- সমিতির নাম (এডমিনের জন্য) -->
+                <div id="reg-somity-name-wrap" style="margin-bottom:10px;">
+                    <label style="font-size:12px;font-weight:600;color:#1a237e;display:block;margin-bottom:4px;">আপনার সমিতির নাম *</label>
+                    <input id="reg-somity-name" type="text" placeholder="যেমন: বাংলাদেশ কল্যাণ সমিতি"
+                        style="width:100%;padding:11px 14px;border:1.5px solid #c7d2fe;border-radius:12px;font-size:14px;outline:none;box-sizing:border-box;background:#eef2ff;">
+                </div>
+
+                <!-- সমিতি কোড (মেম্বারের জন্য) -->
+                <div id="reg-somity-code-wrap" style="margin-bottom:10px;display:none;">
+                    <label style="font-size:12px;font-weight:600;color:#059669;display:block;margin-bottom:4px;">সমিতি কোড (Somity Code) লিখুন *</label>
+                    <input id="reg-somity-code" type="text" placeholder="এডমিনের কাছ থেকে পাওয়া কোডটি লিখুন"
+                        style="width:100%;padding:11px 14px;border:1.5px solid #a7f3d0;border-radius:12px;font-size:14px;outline:none;box-sizing:border-box;background:#ecfdf5;letter-spacing:1px;">
+                    <div style="font-size:10px;color:#059669;margin-top:4px;">💡 এডমিনের কাছ থেকে সমিতি কোড সংগ্রহ করুন।</div>
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">পূর্ণ নাম *</label>
+                    <input id="reg-name" type="text" placeholder="আপনার পূর্ণ নাম"
+                        style="width:100%;padding:11px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:14px;outline:none;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">মোবাইল নম্বর *</label>
+                    <input id="reg-phone" type="tel" placeholder="01XXXXXXXXX"
+                        style="width:100%;padding:11px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:14px;outline:none;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">ইমেইল *</label>
+                    <input id="reg-email" type="email" placeholder="আপনার ইমেইল"
+                        style="width:100%;padding:11px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:14px;outline:none;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">পাসওয়ার্ড * (কমপক্ষে ৬ অক্ষর)</label>
+                    <input id="reg-pass" type="password" placeholder="পাসওয়ার্ড সেট করুন"
+                        style="width:100%;padding:11px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:14px;outline:none;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:14px;">
+                    <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">পাসওয়ার্ড নিশ্চিত করুন *</label>
+                    <input id="reg-pass2" type="password" placeholder="পুনরায় পাসওয়ার্ড লিখুন"
+                        style="width:100%;padding:11px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:14px;outline:none;box-sizing:border-box;"
+                        onkeydown="if(event.key==='Enter')doRegister()">
+                </div>
+                <div id="reg-error" style="color:#e11d48;font-size:12px;margin-bottom:10px;text-align:center;min-height:18px;"></div>
+                <button id="reg-btn" onclick="doRegister()"
+                    style="width:100%;background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;border-radius:12px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;">
+                    নিবন্ধন করুন
+                </button>
+                <div style="text-align:center;margin-top:12px;font-size:12px;color:#64748b;">
+                    ইতিমধ্যে অ্যাকাউন্ট আছে? <span onclick="showLoginTab()" style="color:#1a237e;font-weight:700;cursor:pointer;text-decoration:underline;">লগইন করুন</span>
+                </div>
+            </div>
+
+            <!-- নিবন্ধন সফল বার্তা -->
+            <div id="reg-success-msg" style="display:none;text-align:center;padding:16px 0;">
+                <div style="font-size:2.5rem;margin-bottom:10px;">✅</div>
+                <div style="font-weight:800;font-size:15px;color:#059669;margin-bottom:8px;">নিবন্ধন সম্পন্ন হয়েছে!</div>
+                <div style="font-size:12px;color:#475569;line-height:1.6;">আপনার নিবন্ধন আবেদন এডমিনের কাছে পাঠানো হয়েছে। এডমিন অনুমোদন দিলে আপনি লগইন করতে পারবেন।</div>
+                <button onclick="showLoginTab()" style="margin-top:14px;background:#1a237e;color:#fff;border:none;border-radius:12px;padding:10px 24px;font-size:13px;font-weight:700;cursor:pointer;">লগইন পেজে যান</button>
+            </div>
+        </div>
+
+        <!-- 📲 Android APK ডাউনলোড বাটন (সেকেন্ডারি — মূল লগইন থেকে চোখ সরাবে না) -->
+        <a href="https://digitalsomity.netlify.app/somity.apk" download
+           style="display:flex;align-items:center;justify-content:center;gap:8px;
+                  width:100%;max-width:360px;margin:16px auto 0;box-sizing:border-box;
+                  border:1.5px dashed rgba(255,255,255,0.45);border-radius:14px;
+                  padding:12px 16px;text-decoration:none;">
+            <span style="font-size:16px;">📥</span>
+            <span style="font-size:13px;font-weight:700;color:#fff;">Android অ্যাপ ইনস্টল করুন</span>
+            <span style="font-size:10px;font-weight:700;color:#1a237e;background:rgba(255,255,255,0.85);
+                         border-radius:20px;padding:3px 9px;">APK · 1.3MB</span>
+        </a>
+    </div>
+
+    <!-- ===== 🔐 সুপার অ্যাডমিন মাস্টার প্যানেল ===== -->
+    <div id="super-admin-screen" style="display:none;min-height:100vh;background:linear-gradient(135deg,#0f172a 0%,#1e293b 60%,#0f172a 100%);padding:0;position:fixed;inset:0;z-index:9995;overflow-y:auto;">
+
+        <!-- হেডার -->
+        <div style="background:linear-gradient(90deg,#7c3aed,#4338ca,#1d4ed8);padding:18px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;box-shadow:0 4px 24px rgba(0,0,0,0.5);">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <div style="width:42px;height:42px;background:rgba(255,255,255,0.15);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;">🛡️</div>
+                <div>
+                    <div style="font-size:16px;font-weight:900;color:#fff;letter-spacing:.3px;">মাস্টার কন্ট্রোল প্যানেল</div>
+                    <div style="font-size:10px;color:#a5b4fc;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;">Super Admin · Software Owner</div>
+                </div>
+            </div>
+            <button onclick="doLogout()" style="background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.4);color:#fca5a5;border-radius:10px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">🚪 লগআউট</button>
+        </div>
+
+        <!-- স্ট্যাটস সারসংক্ষেপ -->
+        <div style="padding:20px 16px 0;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+                <div style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);border-radius:16px;padding:14px;text-align:center;">
+                    <div id="sa-total-somities" style="font-size:28px;font-weight:900;color:#a78bfa;">—</div>
+                    <div style="font-size:11px;color:#c4b5fd;font-weight:600;margin-top:2px;">মোট সমিতি</div>
+                </div>
+                <div style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);border-radius:16px;padding:14px;text-align:center;">
+                    <div id="sa-active-somities" style="font-size:28px;font-weight:900;color:#6ee7b7;">—</div>
+                    <div style="font-size:11px;color:#a7f3d0;font-weight:600;margin-top:2px;">সক্রিয় সমিতি</div>
+                </div>
+            </div>
+
+            <!-- রিফ্রেশ বাটন -->
+            <button onclick="superAdminLoadSomities()" style="width:100%;background:linear-gradient(135deg,#7c3aed,#4338ca);color:#fff;border:none;border-radius:14px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:20px;display:flex;align-items:center;justify-content:center;gap:8px;">
+                <span>🔄</span> সব সমিতি লোড করুন / রিফ্রেশ
+            </button>
+
+            <!-- সমিতি তালিকা -->
+            <div id="sa-somities-list" style="display:flex;flex-direction:column;gap:12px;padding-bottom:40px;">
+                <div style="text-align:center;padding:40px 20px;color:#475569;font-size:14px;">
+                    <div style="font-size:2.5rem;margin-bottom:10px;">🏛️</div>
+                    উপরের বাটনে ক্লিক করে সমিতির তালিকা লোড করুন।
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- ===== সুপার অ্যাডমিন মাস্টার প্যানেল শেষ ===== -->
+
+    <!-- ===== Pending অনুমোদন স্ক্রিন ===== -->
+    <div id="pending-screen" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a237e 0%,#283593 60%,#3949ab 100%);padding:16px;">
+        <div style="background:#fff;border-radius:24px;padding:32px 24px;width:100%;max-width:340px;box-shadow:0 25px 50px -12px rgba(0,0,0,.35);text-align:center;">
+            <div style="font-size:3rem;margin-bottom:12px;">⏳</div>
+            <div style="font-weight:800;font-size:16px;color:#1a237e;margin-bottom:10px;">অনুমোদনের অপেক্ষায়</div>
+            <div style="font-size:12px;color:#475569;line-height:1.7;margin-bottom:20px;">আপনার নিবন্ধন আবেদন এডমিনের কাছে পাঠানো হয়েছে। এডমিন অনুমোদন দিলে আপনি সম্পূর্ণ অ্যাপ ব্যবহার করতে পারবেন।</div>
+            <button onclick="doLogout()" style="background:#e11d48;color:#fff;border:none;border-radius:12px;padding:10px 24px;font-size:13px;font-weight:700;cursor:pointer;">🚪 লগআউট</button>
+        </div>
+    </div>
+
+    <!-- ===== 📜 নিয়মাবলী ও শর্তাবলী সম্মতি স্ক্রিন ===== -->
+    <div id="rules-acceptance-screen" style="display:none;flex-direction:column;min-height:100vh;background:#f1f5f9;padding:0;position:fixed;inset:0;z-index:9998;">
+        <div style="background:linear-gradient(135deg,#1a237e 0%,#283593 100%);color:#fff;padding:22px 20px 18px;flex-shrink:0;">
+            <div style="font-size:22px;font-weight:800;">📜 নিয়মাবলী ও শর্তাবলী</div>
+            <div style="font-size:12px;opacity:0.85;margin-top:4px;">অনুগ্রহ করে সম্পূর্ণ নিয়মাবলী মনোযোগ দিয়ে পড়ুন। নিচে পর্যন্ত স্ক্রল করলে সম্মতির অপশন সক্রিয় হবে।</div>
+        </div>
+
+        <div id="rules-scroll-container" onscroll="checkRulesScrollBottom()" style="flex:1;overflow-y:auto;padding:20px;background:#fff;margin:14px 14px 0;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,.06);">
+            <div id="rules-text-content" style="font-size:14px;line-height:1.9;color:#334155;white-space:pre-wrap;word-break:break-word;"></div>
+            <!-- 🐛 ফিক্স: নিয়মাবলী ছোট হলেও যেন স্ক্রল করা বাধ্যতামূলক থাকে, তাই একটা নিশ্চিত উচ্চতার ফাঁকা জায়গা (spacer) — এটাই নিশ্চিত করে scrollHeight সবসময় clientHeight-এর চেয়ে বড় থাকবে -->
+            <div style="height:220px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:16px;color:#94a3b8;font-size:12px;font-weight:600;">
+                ⬇️ সম্পূর্ণ নিয়মাবলী পড়া শেষ — এখন নিচের চেকবক্সে টিক দিন
+            </div>
+            <div style="height:8px;"></div>
+        </div>
+
+        <div style="flex-shrink:0;background:#fff;margin:0 14px;border-radius:0 0 16px 16px;padding:14px 16px 0;">
+            <label style="display:flex;align-items:flex-start;gap:10px;font-size:12.5px;color:#334155;font-weight:600;cursor:pointer;">
+                <input type="checkbox" id="rules-agree-checkbox" disabled onchange="updateRulesAcceptButton()" style="margin-top:3px;width:18px;height:18px;flex-shrink:0;">
+                <span>আমি উপরোক্ত নিয়মাবলী মনোযোগ দিয়ে পড়েছি এবং সকল শর্তে পূর্ণ সম্মতি দিচ্ছি।</span>
+            </label>
+        </div>
+
+        <div style="flex-shrink:0;padding:14px;display:flex;gap:10px;">
+            <button id="rules-reject-btn" onclick="rejectRulesAndLogout()" style="flex:1;background:#fee2e2;color:#b91c1c;border:1.5px solid #fecaca;border-radius:12px;padding:13px;font-size:13px;font-weight:800;cursor:pointer;">
+                ❌ অসম্মত/বাতিল করুন
+            </button>
+            <button id="rules-accept-btn" onclick="acceptRulesAndProceed()" disabled style="flex:2;background:#94a3b8;color:#fff;border:none;border-radius:12px;padding:13px;font-size:13px;font-weight:800;cursor:not-allowed;">
+                ✅ সম্মতি দিচ্ছি এবং প্রবেশ করুন
+            </button>
+        </div>
+        <div style="text-align:center;font-size:10px;color:#94a3b8;padding-bottom:10px;">নিয়মাবলী ভার্সন: <span id="rules-version-display">—</span></div>
+    </div>
+
+    <div id="paywall-screen" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 50%,#312e81 100%);padding:20px;position:fixed;inset:0;z-index:9998;overflow-y:auto;">
+        <div style="width:100%;max-width:380px;margin:auto;padding:20px 0;">
+
+            <!-- লক আইকন অ্যানিমেশন -->
+            <div style="text-align:center;margin-bottom:24px;">
+                <div style="display:inline-flex;align-items:center;justify-content:center;width:70px;height:70px;border-radius:50%;background:linear-gradient(135deg,#ef4444,#b91c1c);box-shadow:0 0 0 12px rgba(239,68,68,0.13),0 0 0 24px rgba(239,68,68,0.06);margin-bottom:16px;">
+                    <span style="font-size:2rem;">🔒</span>
+                </div>
+                <div style="display:inline-block;background:rgba(239,68,68,0.18);border:1px solid rgba(239,68,68,0.4);border-radius:999px;padding:5px 18px;font-size:11px;font-weight:700;color:#fca5a5;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;">ট্রায়াল মেয়াদ শেষ</div>
+                <h2 style="font-size:22px;font-weight:900;color:#fff;line-height:1.35;margin-bottom:10px;">আপনার ফ্রি ট্রায়ালের<br>মেয়াদ শেষ হয়েছে!</h2>
+                <p style="font-size:13px;color:#a5b4fc;line-height:1.7;max-width:290px;margin:0 auto;">অ্যাপটি নিয়মিত ব্যবহার করতে আপনার সাবস্ক্রিপশন নবায়ন করুন এবং আপনার সমিতি পরিচালনা করুন।</p>
+            </div>
+
+            <!-- মূল কার্ড -->
+            <div style="background:rgba(255,255,255,0.05);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.12);border-radius:24px;overflow:hidden;">
+
+                <!-- প্ল্যান ব্যানার -->
+                <div style="background:linear-gradient(90deg,#7c3aed,#4f46e5);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;">
+                    <div>
+                        <div style="font-size:11px;color:#c4b5fd;font-weight:600;letter-spacing:1px;margin-bottom:3px;">বার্ষিক প্ল্যান</div>
+                        <div style="font-size:20px;font-weight:900;color:#fff;">৳ ১,০০০ <span style="font-size:12px;font-weight:500;color:#c4b5fd;">/ বছর</span></div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.15);border-radius:12px;padding:8px 14px;text-align:center;">
+                        <div style="font-size:10px;color:#e9d5ff;font-weight:600;">মাসে মাত্র</div>
+                        <div style="font-size:17px;font-weight:900;color:#fff;">৳ ১০০</div>
+                    </div>
+                </div>
+
+                <div style="padding:14px 16px 16px;">
+
+                    <!-- পেমেন্ট শিরোনাম — নাম্বার বক্সের মতো বর্ডার স্টাইলে -->
+                    <div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:9px 14px;margin-bottom:12px;text-align:center;">
+                        <span style="font-size:12px;font-weight:800;color:#a5b4fc;letter-spacing:1px;">💳 পেমেন্ট করুন</span>
+                    </div>
+
+                    <!-- বিকাশ + নগদ কম্বাইন্ড কার্ড -->
+                    <div style="border-radius:16px;margin-bottom:14px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,0.35);">
+
+                        <!-- টপ স্ট্রাইপ -->
+                        <div style="height:4px;background:linear-gradient(90deg,#e40046 0%,#ff4500 50%,#ff7800 100%);"></div>
+
+                        <!-- মেইন বডি -->
+                        <div style="background:linear-gradient(160deg,#1a0a1e 0%,#1e0d10 40%,#1c0e08 100%);padding:14px 14px 14px;">
+
+                            <!-- লোগো দুটো পাশাপাশি -->
+                            <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:14px;">
+
+                                <!-- বিকাশ লোগো ব্লক -->
+                                <div style="display:flex;flex-direction:column;align-items:center;gap:5px;">
+                                    <div style="width:52px;height:52px;border-radius:14px;overflow:hidden;box-shadow:0 4px 14px rgba(228,0,70,0.5);">
+                                        <img src="data:image/png;base64,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" style="width:100%;height:100%;object-fit:cover;" alt="bKash">
+                                    </div>
+                                    <span style="font-size:9px;font-weight:800;color:#fca5a5;letter-spacing:.8px;text-transform:uppercase;">বিকাশ</span>
+                                    <span style="font-size:8px;color:rgba(252,165,165,0.6);font-weight:600;">Merchant Pay</span>
+                                </div>
+
+                                <!-- + চিহ্ন -->
+                                <div style="width:26px;height:26px;border-radius:50%;border:1.5px dashed rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center;font-size:14px;color:rgba(255,255,255,0.5);font-weight:300;flex-shrink:0;">+</div>
+
+                                <!-- নগদ লোগো ব্লক -->
+                                <div style="display:flex;flex-direction:column;align-items:center;gap:5px;">
+                                    <div style="width:52px;height:52px;border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 4px 14px rgba(255,120,0,0.5);display:flex;align-items:center;justify-content:center;">
+                                        <img src="data:image/png;base64,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" style="width:90%;height:90%;object-fit:contain;" alt="Nagad">
+                                    </div>
+                                    <span style="font-size:9px;font-weight:800;color:#fed7aa;letter-spacing:.8px;text-transform:uppercase;">নগদ</span>
+                                    <span style="font-size:8px;color:rgba(253,215,170,0.6);font-weight:600;">Send Money</span>
+                                </div>
+                            </div>
+
+                            <!-- নাম্বার + কপি বাটন একই রো-তে -->
+                            <div id="paywall-nagad-number" style="display:none;">01919276638</div>
+                            <button onclick="copyToClipboard('paywall-bkash-number')" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:10px 14px;color:#fff;font-size:19px;font-weight:900;cursor:pointer;letter-spacing:3px;font-family:'Courier New',monospace;display:flex;align-items:center;justify-content:space-between;gap:8px;box-shadow:none;">
+                                <span id="paywall-bkash-number" style="flex:1;text-align:center;">01919276638</span>
+                                <span style="flex-shrink:0;background:linear-gradient(90deg,#e40046,#ff7800);border-radius:8px;padding:6px 10px;font-size:11px;font-weight:800;letter-spacing:.5px;font-family:Arial,sans-serif;color:#fff;white-space:nowrap;">📋 কপি</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- হেল্পলাইন -->
+                    <div style="background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.35);border-radius:14px;padding:13px 16px;display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+                        <div style="flex-shrink:0;width:40px;height:40px;background:#6366f1;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;">📞</div>
+                        <div style="flex:1;">
+                            <div style="font-size:10px;color:#a5b4fc;font-weight:700;letter-spacing:.5px;margin-bottom:2px;">হেল্পলাইন (সকাল ৯টা – রাত ৯টা)</div>
+                            <div id="paywall-helpline-number" style="font-size:17px;font-weight:900;color:#fff;letter-spacing:2px;font-family:monospace;">01719276638</div>
+                        </div>
+                        <a href="tel:01919276638" id="paywall-helpline-link" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:6px 10px;color:#e2e8f0;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0;text-decoration:none;">কল</a>
+                    </div>
+
+                    <!-- পেমেন্ট পাঠানোর নোট -->
+                    <div style="background:rgba(250,204,21,0.1);border:1px dashed rgba(250,204,21,0.35);border-radius:12px;padding:11px 14px;margin-bottom:16px;">
+                        <div style="font-size:11px;color:#fde68a;line-height:1.7;">
+                            💡 পেমেন্ট পাঠানোর পরে Transaction ID সহ হেল্পলাইনে WhatsApp করুন। ২৪ ঘণ্টার মধ্যে আপনার অ্যাকাউন্ট সক্রিয় করা হবে।
+                        </div>
+                    </div>
+
+                    <!-- লগআউট বাটন -->
+                    <button onclick="doLogout()" style="width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.18);border-radius:12px;padding:11px;color:#94a3b8;font-size:13px;font-weight:600;cursor:pointer;">
+                        🚪 অন্য অ্যাকাউন্টে লগইন করুন
+                    </button>
+                </div>
+            </div>
+
+            <!-- ট্রায়াল ব্যাজ -->
+            <div style="text-align:center;margin-top:16px;font-size:11px;color:#6366f1;">
+                🛡 নিরাপদ পেমেন্ট · আপনার ডেটা সুরক্ষিত আছে
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== মেইন অ্যাপ ===== -->
+    <div id="main-app" style="display:none;">
+
+    <!-- সমিতির নাম হেডার -->
+    <div style="background:linear-gradient(135deg,#1a237e 0%,#283593 60%,#3949ab 100%);padding:0;" class="sticky top-0 z-40 shadow-md no-print">
+        <div class="max-w-xl mx-auto" style="display:flex;justify-content:center;align-items:center;padding:10px 12px;min-height:64px;">
+
+            <!-- মাঝে: সদস্য-আইকন (অনলাইন ব্যাজ সহ) + সমিতির নাম -->
+            <div style="display:flex;align-items:center;gap:8px;justify-content:center;">
+                <!-- ✅ অনুমোদিত/অনলাইন সদস্য বাটন — আগের approved-users-btn, আইডি/ফাংশন অপরিবর্তিত, শুধু লাল ব্যাজ ও নতুন জায়গা -->
+                <button id="approved-users-btn" onclick="toggleApprovedUsersPanel()"
+                    style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:50%;width:40px;height:40px;flex-shrink:0;align-items:center;justify-content:center;font-size:18px;cursor:pointer;position:relative;"
+                    title="অনুমোদিত সদস্য">
+                    👥
+                    <!-- ✅ FIX: কতজন এখন অনলাইনে আছে — লাল ব্যাজ, শুধু কেউ অনলাইনে থাকলেই দেখা যাবে -->
+                    <span id="approved-online-badge" style="display:none;position:absolute;top:-2px;right:-2px;background:#ef4444;color:#fff;border-radius:9px;min-width:16px;height:16px;font-size:10px;font-weight:800;align-items:center;justify-content:center;padding:0 4px;border:1.5px solid #1a237e;"></span>
+                </button>
+                <div style="text-align:center;">
+                <div style="font-size:9px;color:#c5cae9;font-weight:500;letter-spacing:1px;margin-bottom:2px;">বিসমিল্লাহির রাহমানির রাহিম</div>
+                <div id="header-somity-name" class="hsn-skeleton" style="font-size:16px;font-weight:800;line-height:1.35;letter-spacing:.3px;
+                    background:linear-gradient(90deg,#ffe082,#fffde7,#ffe082);
+                    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                    background-clip:text;padding:2px 0;">
+                    সমিতি ম্যানেজার
+                </div>
+                <!-- এডমিনের জন্য সমিতি কোড ব্যাজ -->
+                <div id="somity-code-badge" style="display:none;margin-top:4px;">
+                    <div style="display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,224,130,0.4);border-radius:20px;padding:3px 10px 3px 8px;cursor:pointer;" onclick="copySomityCode()" title="কোড কপি করুন">
+                        <span style="font-size:9px;color:#ffe082;font-weight:600;letter-spacing:.3px;">🔑 কোড:</span>
+                        <span id="somity-code-display" style="font-size:9px;color:#fffde7;font-weight:800;font-family:monospace;letter-spacing:.5px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+                        <span style="font-size:8px;color:#a5f3fc;background:rgba(6,182,212,0.2);border-radius:10px;padding:1px 5px;font-weight:700;">কপি</span>
+                    </div>
+                </div>
+                </div>
+            </div>
+
+
+            <!-- ডান কলাম: বেল + নোটিশ (✅ পুরনো — বেল এখন সবুজ টপবারে, নোটিশ এখন "দ্রুত কার্যক্রম" গ্রিডে সরানো হয়েছে, এই কলাম তাই বাদ) -->
+
+            <!-- ✅ এই বাটনগুলো "দ্রুত কার্যক্রম" গ্রিডে সরিয়ে নেওয়া হয়েছে (নিচে দেখুন) -->
+
+        </div>
+    </div>
+
+    <!-- সমিতি ম্যানেজার সাব-হেডার সরানো হয়েছে -->
+    <span id="current-date" style="display:none;"></span>
+
+    <div class="max-w-xl mx-auto p-4 space-y-4 print-container" style="padding-bottom:90px;">
+
+        <!-- ইন-অ্যাপ নোটিফিকেশন হিস্ট্রি প্যানেল (🔔 ক্লিক করলে খুলবে) -->
+        <div id="notif-history-panel" class="no-print" style="display:none;background:#fff;border:1.5px solid #e2e8f0;border-radius:16px;padding:14px 16px;box-shadow:0 4px 20px rgba(0,0,0,.08);">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                <span style="font-size:1.2rem;">🔔</span>
+                <span style="font-weight:700;font-size:14px;color:#1e293b;">লেনদেনের বিজ্ঞপ্তি</span>
+                <button onclick="clearNotifHistory()" style="margin-left:auto;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:3px 10px;font-size:11px;font-weight:700;color:#dc2626;cursor:pointer;">সব মুছুন</button>
+                <button onclick="toggleNotifHistoryPanel()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#aaa;padding:0 2px;">✕</button>
+            </div>
+            <div id="notif-history-list" style="max-height:300px;overflow-y:auto;"></div>
+        </div>
+
+        <!-- নোটিশ কার্ড (নোটিশ থাকলে সবসময় দেখাবে) -->
+        <div id="notice-card" class="no-print" style="display:none;">
+            <div style="background:#fffde7;border:1.5px solid #ffe082;border-radius:16px;padding:14px 16px;box-shadow:0 2px 8px rgba(251,192,45,.15);">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                    <span style="font-size:1.2rem;">📢</span>
+                    <span style="font-weight:700;font-size:14px;color:#e65100;">সংবাদ ও বিজ্ঞপ্তি</span>
+                    <button onclick="toggleNoticePanel()" id="notice-manage-btn" style="margin-left:auto;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:3px 10px;font-size:11px;font-weight:700;color:#f57f17;cursor:pointer;display:none;">⚙ ম্যানেজ</button>
+                </div>
+                <div id="notice-card-body" style="font-size:13px;color:#4e342e;line-height:1.8;"></div>
+                <!-- মতামত সেকশন -->
+                <div style="margin-top:12px;border-top:1px dashed #ffe082;padding-top:10px;">
+                    <div style="font-size:12px;font-weight:700;color:#6d4c41;margin-bottom:6px;">💬 সদস্যদের মতামত</div>
+                    <div id="opinion-list" style="margin-bottom:8px;max-height:140px;overflow-y:auto;"></div>
+                    <div style="display:flex;gap:6px;width:100%;box-sizing:border-box;align-items:center;">
+                        <div id="notice-vote-row" style="display:flex;gap:5px;align-items:center;flex-shrink:0;"></div>
+                        <input type="text" id="opinion-text" placeholder="মতামত লিখুন" style="width:0;flex:2;min-width:0;padding:7px 8px;border:1px solid #ffe082;border-radius:10px;font-size:12px;background:#fffef5;outline:none;box-sizing:border-box;">
+                        <button onclick="submitOpinion()" style="flex-shrink:0;background:#f57f17;color:#fff;border:none;border-radius:10px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">পাঠান</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- এডমিন: অনুমোদিত সদস্য (লগইন ইউজার) লিস্ট প্যানেল -->
+        <div id="approved-users-panel" class="no-print admin-only" style="display:none;background:#e8f5e9;border:1.5px solid #a5d6a7;border-radius:16px;padding:14px 16px;box-shadow:0 2px 8px rgba(76,175,80,.12);">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                <span style="font-size:1.2rem;">✅</span>
+                <span style="font-weight:700;font-size:14px;color:#2e7d32;">অনুমোদিত ব্যবহারকারী তালিকা</span>
+                <button onclick="document.getElementById('approved-users-panel').style.display='none'" style="margin-left:auto;background:none;border:none;font-size:1.2rem;cursor:pointer;color:#aaa;">✕</button>
+            </div>
+            <div id="approved-users-list"><div style="font-size:12px;color:#999;text-align:center;padding:10px;">লোড হচ্ছে...</div></div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 no-print">
+            <div class="bg-white p-4 rounded-2xl shadow flex items-center justify-between gap-2">
+                <div>
+                    <p class="text-xs text-gray-400">মোট সদস্য</p>
+                    <h2 id="total-members" class="text-2xl font-bold">0</h2>
+                </div>
+                <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <i class="fa-solid fa-users text-blue-600 text-lg"></i>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-2xl shadow flex items-center justify-between gap-2">
+                <div>
+                    <p class="text-xs text-gray-400">মোট সঞ্চয়</p>
+                    <h2 id="total-savings" class="text-2xl font-bold text-blue-600">৳ 0</h2>
+                </div>
+                <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <i class="fa-solid fa-wallet text-blue-600 text-lg"></i>
+                </div>
+            </div>            <div class="bg-white p-4 rounded-2xl shadow" style="overflow:visible;">
+                <div class="flex items-center justify-between gap-2">
+                    <div style="min-width:0;">
+                        <p class="text-xs text-gray-400">ক্যাশ ইন হ্যান্ড</p>
+                        <h2 id="cash-in-hand" class="text-2xl font-bold text-amber-600">৳ 0</h2>
+                    </div>
+                    <div class="relative flex-shrink-0">
+                        <button onclick="toggleFundDropdown()" class="flex items-center gap-1 rounded-full bg-amber-100 cursor-pointer" style="border:none;padding:10px 8px 10px 12px;">
+                            <i class="fa-solid fa-sack-dollar text-amber-600 text-lg"></i>
+                            <i class="fa-solid fa-chevron-down text-amber-600" style="font-size:10px;"></i>
+                        </button>
+                        <div id="fund-dropdown-menu" class="hidden absolute right-0 mt-2 w-44 bg-white border border-slate-200 rounded-xl shadow-lg z-40 overflow-hidden" style="max-width:calc(100vw - 32px);">
+                            <button onclick="openOtherFundModal(); closeFundDropdown();" class="w-full text-left px-4 py-3 text-xs text-amber-700 hover:bg-amber-50 font-bold cursor-pointer">
+                                তহবিল/অন্যান্য ফান্ড
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-2xl shadow flex items-center justify-between gap-2">
+                <div>
+                    <p class="text-xs text-gray-400">ব্যাংক ব্যালেন্স</p>
+                    <h2 id="bank-balance" class="text-2xl font-bold text-indigo-600">৳ 0</h2>
+                </div>
+                <div class="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                    <i class="fa-solid fa-building-columns text-purple-600 text-lg"></i>
+                </div>
+            </div>
+            <!-- ✅ নতুন: মোট বিনিয়োগ কার্ড (ডিজাইন — পরের ধাপে ফাংশনালিটি যুক্ত হবে) -->
+            <div class="bg-white p-4 rounded-2xl shadow flex items-center justify-between gap-2 col-span-2">
+                <div>
+                    <p class="text-xs text-gray-400">মোট বিনিয়োগ</p>
+                    <h2 id="total-investment" class="text-2xl font-bold text-teal-600">৳ 0</h2>
+                </div>
+                <div class="w-12 h-12 rounded-full bg-teal-100 flex items-center justify-center flex-shrink-0">
+                    <i class="fa-solid fa-seedling text-teal-600 text-lg"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- ✅ মোট খরচ কার্ড — রিপোর্ট ও লেজার সমূহ কার্ডের পুরনো জায়গায় সরানো হয়েছে (দ্রুত কার্যক্রম এর ঠিক উপরে) -->
+        <div class="bg-white p-4 rounded-2xl shadow flex justify-between items-center no-print admin-only">
+            <div>
+                <p class="text-xs text-gray-400">মোট খরচ</p>
+                <h2 id="total-expenses" class="text-2xl font-bold text-rose-600">৳ 0</h2>
+            </div>
+            <button onclick="resetExpenses()" class="bg-rose-100 text-rose-600 px-3 py-1 rounded-xl text-xs font-bold cursor-pointer">
+                <i class="fa-solid fa-rotate-left"></i> খরচ রিসেট
+            </button>
+        </div>
+
+        <!-- ✅ দ্রুত কার্যক্রম গ্রিড -->
+        <div class="bg-white p-4 rounded-2xl shadow no-print">
+            <p class="text-xs font-bold text-slate-500 mb-2"><i class="fa-solid fa-bolt"></i> দ্রুত কার্যক্রম</p>
+            <div class="grid grid-cols-4 gap-2">
+                <!-- ১. আমার আইডি (নিজের প্রোফাইল/লেনদেনের খাতা) — সবার জন্য — মেনু > "আমার প্রোফাইল ও লেনদেন" এর মতোই কাজ করে -->
+                <button onclick="window.openMyOwnMemberProfile()" id="my-id-quick-btn" class="flex flex-col items-center justify-center gap-1 bg-emerald-50 hover:bg-emerald-100 rounded-2xl py-3 cursor-pointer transition" title="আমার প্রোফাইল ও লেনদেন দেখুন">
+                    <span id="my-id-quick-icon-wrap" style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;">
+                        <img id="my-id-quick-photo" src="" alt="" style="display:none;width:26px;height:26px;border-radius:50%;object-fit:cover;">
+                        <span id="my-id-quick-fallback" style="font-size:22px;line-height:1;">🆔</span>
+                    </span>
+                    <span class="text-xs font-bold text-emerald-700">আমার আইডি</span>
+                </button>
+                <!-- ২. সদস্য ব্যবস্থাপনা (নিবন্ধন অনুমোদন) — শুধু এডমিন — আগের admin-approval-btn, আইডি/ফাংশন অপরিবর্তিত -->
+                <button id="admin-approval-btn" onclick="togglePendingApprovalPanel()" style="display:none;" class="flex flex-col items-center justify-center gap-1 bg-amber-50 hover:bg-amber-100 rounded-2xl py-3 cursor-pointer transition relative" title="সদস্য ব্যবস্থাপনা">
+                    <span style="font-size:22px;line-height:1;">👥</span>
+                    <span class="text-xs font-bold text-amber-700">সদস্য<br>ব্যবস্থাপনা</span>
+                    <span id="pending-count-badge" style="font-size:10px;color:#b45309;font-weight:800;"></span>
+                </button>
+                <!-- ৩. নোটিশ ম্যানেজ — শুধু এডমিন — আগের notice-panel-btn, আইডি/ফাংশন অপরিবর্তিত -->
+                <button id="notice-panel-btn" onclick="toggleNoticePanel()" style="display:none;" class="flex flex-col items-center justify-center gap-1 bg-blue-50 hover:bg-blue-100 rounded-2xl py-3 cursor-pointer transition" title="নোটিশ ম্যানেজ">
+                    <span style="font-size:22px;line-height:1;">📢</span>
+                    <span class="text-xs font-bold text-blue-700">নোটিশ</span>
+                </button>
+                <!-- ৪. সেটিংস — শুধু এডমিন — সবুজ টপবারের গিয়ার বাটনের শর্টকাট -->
+                <button onclick="window.openAdminSettingsModal()" class="admin-only flex flex-col items-center justify-center gap-1 bg-purple-50 hover:bg-purple-100 rounded-2xl py-3 cursor-pointer transition" style="display:none;" title="সেটিংস">
+                    <span style="font-size:22px;line-height:1;">⚙️</span>
+                    <span class="text-xs font-bold text-purple-700">সেটিংস</span>
+                </button>
+            </div>
+
+            <!-- সদস্য ব্যবস্থাপনা প্যানেল (বাটনের ঠিক কাছেই খুলবে) -->
+            <div id="pending-approval-panel" class="no-print admin-only" style="display:none;margin-top:12px;background:#fffde7;border:1.5px solid #ffd54f;border-radius:16px;padding:14px 16px;box-shadow:0 2px 8px rgba(255,193,7,.18);">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                    <span style="font-size:1.2rem;">🔐</span>
+                    <span style="font-weight:700;font-size:14px;color:#e65100;">নিবন্ধন অনুমোদন</span>
+                    <button onclick="document.getElementById('pending-approval-panel').style.display='none'" style="margin-left:auto;background:none;border:none;font-size:1.2rem;cursor:pointer;color:#aaa;">✕</button>
+                </div>
+                <div id="pending-users-list"><div style="font-size:12px;color:#999;text-align:center;padding:10px;">লোড হচ্ছে...</div></div>
+            </div>
+
+            <!-- নোটিশ ম্যানেজ প্যানেল (বাটনের ঠিক কাছেই খুলবে) -->
+            <div id="notice-panel" class="no-print" style="display:none;margin-top:12px;">
+                <div style="background:#fffde7;border:1.5px solid #ffe082;border-radius:16px;padding:14px 16px;box-shadow:0 2px 8px rgba(251,192,45,.15);">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                        <span style="font-size:1.2rem;">📢</span>
+                        <span style="font-weight:700;font-size:14px;color:#e65100;">সংবাদ ও বিজ্ঞপ্তি</span>
+                        <button onclick="addNotice()" id="notice-add-btn" style="margin-left:auto;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:3px 12px;font-size:11px;font-weight:700;color:#2e7d32;cursor:pointer;">+ নোটিশ যুক্ত</button>
+                        <button onclick="window.sendPushNotification()" id="push-notif-btn" style="display:none;background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;padding:3px 10px;font-size:11px;font-weight:700;color:#1565c0;cursor:pointer;">🔔 পুশ</button>
+                        <button onclick="toggleNoticePanel()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#aaa;padding:0 2px;">✕</button>
+                    </div>
+                    <div id="notice-list"></div>
+                    <div id="notice-empty" style="font-size:12px;color:#bbb;text-align:center;padding:10px 0;display:none;">কোনো নোটিশ নেই।</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ✅ ব্যাকআপ/রিস্টোর ও হিসাব পুনঃযাচাই কার্ড এখান থেকে সরানো হয়েছে — এখন শুধু "মেনু" বটম-শিটে পাওয়া যাবে -->
+
+        <!-- ===== সদস্য তালিকা — ফুল-স্ক্রিন ভিউ (নিচের "সদস্য" বাটনে খুলবে, "হোম" চাপলে বন্ধ হবে) ===== -->
+        <div class="no-print" id="member-list-section">
+            <!-- ফুল-স্ক্রিন হেডার -->
+            <div id="member-fullscreen-header">
+                <span style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:1.2rem;">👥</span> সদস্য তালিকা
+                </span>
+                <button onclick="bnGoHome()" id="member-fullscreen-close-btn" title="বন্ধ করুন">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div id="member-panel-body">
+                <!-- ৩টি আধুনিক টুল বাটন: নতুন সদস্য, লিস্ট PDF, রিসেট -->
+                <div class="admin-only">
+                    <div style="display:flex;flex-direction:row;justify-content:flex-end;gap:8px;margin-bottom:14px;">
+                        <button onclick="openMemberModal()" title="নতুন সদস্য" class="member-tool-btn member-tool-add">
+                            <i class="fa-solid fa-user-plus"></i>
+                        </button>
+                        <button onclick="downloadMemberListPDF()" title="লিস্ট PDF" class="member-tool-btn member-tool-pdf">
+                            <i class="fa-solid fa-file-pdf"></i>
+                        </button>
+                        <button onclick="clearAllDataWithPassword()" title="সব রিসেট" class="member-tool-btn member-tool-reset">
+                            <i class="fa-solid fa-rotate-left"></i>
+                        </button>
+                        <button onclick="openClosedAccountsModal()" title="ক্লোজড অ্যাকাউন্ট" class="member-tool-btn" style="background:#f1f5f9;color:#475569;">
+                            <i class="fa-solid fa-lock"></i>
+                        </button>
+                    </div>
+                </div>
+                <!-- সদস্য কার্ডের তালিকা -->
+                <div id="member-list-container" class="space-y-3"></div>
+            </div>
+        </div>
+
+    <!-- ===== FAB ওভারলে (ক্লিক করলে মেনু বন্ধ হবে) ===== -->
+    <div class="fab-overlay no-print" id="fab-overlay" onclick="closeFabMenu()"></div>
+
+    <!-- ===== নিচের Bottom Navigation Bar ===== -->
+    <nav id="bottom-nav-bar" class="no-print">
+        <!-- হোম -->
+        <button class="bn-item bn-active" id="bn-home" onclick="bnGoHome()">
+            <i class="fa-solid fa-house"></i>
+            <span>হোম</span>
+        </button>
+        <!-- সদস্য -->
+        <button class="bn-item" id="bn-members" onclick="bnGoMembers()">
+            <i class="fa-solid fa-users"></i>
+            <span>সদস্য</span>
+        </button>
+        <!-- সাহায্য ও সাপোর্ট -->
+        <button class="bn-item" id="bn-help" onclick="openHelpSupportModal()">
+            <i class="fa-solid fa-circle-question"></i>
+            <span>সাহায্য</span>
+        </button>
+        <!-- রিপোর্ট -->
+        <button class="bn-item" id="bn-report" onclick="bnGoReport()">
+            <i class="fa-solid fa-chart-pie"></i>
+            <span>রিপোর্ট</span>
+        </button>
+        <!-- মেনু -->
+        <button class="bn-item" id="bn-menu" onclick="toggleBottomMenu()">
+            <i class="fa-solid fa-bars"></i>
+            <span>মেনু</span>
+        </button>
+    </nav>
+
+    <!-- ➕ ভাসমান FAB — ডান পাশে নিচের কোনায়, বটম-ন্যাভের একটু উপরে -->
+    <div class="fab-sub-group" id="fab-sub-group">
+        <button class="fab-sub-btn fab-sub-bank" onclick="openBankModal(); closeFabMenu();">
+            <span class="fab-sub-icon">🏦</span>
+            <span>ব্যাংক লেনদেন</span>
+        </button>
+        <button class="fab-sub-btn fab-sub-expense" onclick="openExpenseModal(); closeFabMenu();">
+            <span class="fab-sub-icon">🧾</span>
+            <span>খরচ+</span>
+        </button>
+        <button class="fab-sub-btn fab-sub-member admin-only" onclick="openMemberModal(); closeFabMenu();">
+            <span class="fab-sub-icon">➕</span>
+            <span>+নতুন সদস্য</span>
+        </button>
+        <button class="fab-sub-btn fab-sub-deposit" onclick="openQuickDepositModal(); closeFabMenu();">
+            <span class="fab-sub-icon">👛</span>
+            <span>দ্রুত সঞ্চয়</span>
+        </button>
+        <button class="fab-sub-btn fab-sub-investment admin-only" onclick="window.openInvestmentModal(); closeFabMenu();">
+            <span class="fab-sub-icon">🌱</span>
+            <span>বিনিয়োগ</span>
+        </button>
+    </div>
+    <button id="fab-main-btn" class="admin-only" onclick="toggleFabMenu()" title="দ্রুত যোগ করুন">
+        <i class="fab-icon" style="font-size:26px;font-style:normal;">+</i>
+    </button>
+
+    <!-- ===== রিপোর্ট শিট (নিচ থেকে স্লাইড-আপ) ===== -->
+    <div id="report-sheet-overlay" class="no-print" onclick="closeReportSheet()"></div>
+    <div id="report-sheet" class="no-print">
+        <div class="bsheet-handle"></div>
+        <p class="bsheet-title"><i class="fa-solid fa-chart-pie"></i> রিপোর্ট ও লেজার</p>
+        <button class="bsheet-item" onclick="closeReportSheet(); openMonthlyReportModal();">
+            <span style="font-size:20px;">📅</span><span>মাসিক সঞ্চয় রিপোর্ট (সকল সদস্য)</span>
+        </button>
+        <button class="bsheet-item" onclick="closeReportSheet(); openBankLedgerModal();">
+            <span style="font-size:20px;">🏦</span><span>ব্যাংক লেনদেন লেজার</span>
+        </button>
+        <button class="bsheet-item" onclick="closeReportSheet(); openExpenseLedgerModal();">
+            <span style="font-size:20px;">🧾</span><span>খরচের লেজার</span>
+        </button>
+        <button class="bsheet-item admin-only" onclick="closeReportSheet(); window.openInvestmentLedgerModal();">
+            <span style="font-size:20px;">🌱</span><span>বিনিয়োগের লেজার</span>
+        </button>
+    </div>
+
+    <!-- ===== মেনু শিট (নিচ থেকে স্লাইড-আপ) — সব ফাংশন ===== -->
+    <div id="menu-panel-overlay" class="no-print" onclick="closeBottomMenu()"></div>
+    <div id="menu-panel" class="no-print">
+        <div class="bsheet-handle"></div>
+        <p class="bsheet-title"><i class="fa-solid fa-bars"></i> মেনু</p>
+        <!-- সবার জন্য -->
+        <button class="bsheet-item" onclick="closeBottomMenu(); openMyOwnMemberProfile();">
+            <span style="font-size:20px;">🆔</span><span>আমার প্রোফাইল ও লেনদেন</span>
+        </button>
+        <button class="bsheet-item" onclick="closeBottomMenu(); window.openMyPasswordModal();">
+            <span style="font-size:20px;">🔐</span><span>পাসওয়ার্ড পরিবর্তন</span>
+        </button>
+        <!-- এডমিন-অনলি -->
+        <button class="bsheet-item admin-only" onclick="closeBottomMenu(); window.openAdminSettingsModal();">
+            <span style="font-size:20px;">⚙️</span><span>এডমিন সেটিংস</span>
+        </button>
+        <button class="bsheet-item admin-only" onclick="closeBottomMenu(); exportDataBackup();">
+            <span style="font-size:20px;">💾</span><span>ব্যাকআপ নামান</span>
+        </button>
+        <button class="bsheet-item admin-only" onclick="closeBottomMenu(); document.getElementById('backup-file-input').click();">
+            <span style="font-size:20px;">📂</span><span>রিস্টোর ফাইল</span>
+        </button>
+        <button class="bsheet-item admin-only" onclick="closeBottomMenu(); recalculateCashInHand();">
+            <span style="font-size:20px;">🧮</span><span>হিসাব পুনঃযাচাই</span>
+        </button>
+        <button class="bsheet-item admin-only" onclick="closeBottomMenu(); resetExpenses();">
+            <span style="font-size:20px;">↩</span><span>খরচ রিসেট</span>
+        </button>
+        <div class="bsheet-divider"></div>
+        <button class="bsheet-item danger" onclick="closeBottomMenu(); doLogout();">
+            <span style="font-size:20px;">🚪</span><span>লগ আউট</span>
+        </button>
+    </div>
+
+    <div id="quick-deposit-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 space-y-4">
+            <h2 class="font-bold text-lg text-slate-800"><i class="fa-solid fa-wallet text-blue-600"></i> দ্রুত সঞ্চয় জমা</h2>
+            <div>
+                <label class="text-xs text-gray-500 block mb-1">১. সদস্য আইডি *</label>
+                <input type="text" id="qd-member-id" oninput="autoFillMemberName()" placeholder="আইডি নাম্বার লিখুন" class="w-full p-3 border rounded-xl font-mono">
+            </div>            <div>
+                <label class="text-xs text-gray-500 block mb-1">২. সদস্যের নাম</label>
+                <input type="text" id="qd-member-name" placeholder="আইডি দিলে নাম এখানে দেখাবে" class="w-full p-3 border rounded-xl bg-gray-50 text-gray-700 font-bold cursor-pointer hover:bg-emerald-50 hover:border-emerald-400 transition" readonly onclick="openMemberSearchModal()">
+                <div id="qd-balance-display" class="hidden text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 mt-1.5">বর্তমান সঞ্চয় ব্যালেন্স: ৳ <span id="qd-balance-amount">0</span></div>
+            </div>
+            <div>
+                <label class="text-xs text-gray-500 block mb-1">৩. তারিখ ও সময় নির্ধারণ করুন</label>
+                <input type="datetime-local" id="qd-date" class="w-full p-3 border rounded-xl text-sm">
+            </div>
+            <div>
+                <label class="text-xs text-gray-500 block mb-1">৪. লেনদেনের ধরন</label>
+                <select id="qd-txn-type" class="w-full p-3 border rounded-xl bg-white text-gray-700 font-bold">
+                    <option value="deposit" selected>সঞ্চয়</option>
+                    <option value="withdraw">উত্তোলন</option>
+                    <option value="admission">ভর্তি ফি</option>
+                    <option value="fine">জরিমানা</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-xs text-gray-500 block mb-1">৫. টাকার পরিমাণ *</label>
+                <input type="number" id="qd-amount" placeholder="টাকা লিখুন" class="w-full p-3 border rounded-xl">
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button onclick="closeQuickDepositModal()" class="w-1/2 bg-gray-200 p-3 rounded-xl font-bold cursor-pointer">বাতিল</button>
+                <button onclick="handleQuickDepositSubmit()" class="w-1/2 bg-emerald-600 text-white p-3 rounded-xl font-bold cursor-pointer">নিশ্চিত করুন</button>
+            </div>
+        </div>
+    </div>    
+
+    <!-- সদস্য সার্চ মডাল -->
+    <div id="member-search-modal" class="hidden fixed inset-0 bg-black/60 z-[60] items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-5 space-y-3 max-h-[80vh] flex flex-col">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h2 class="font-bold text-base text-slate-800"><i class="fa-solid fa-magnifying-glass text-emerald-600"></i> সদস্য খুঁজুন</h2>
+                <button onclick="closeMemberSearchModal()" class="text-gray-500 hover:text-gray-700 text-xl font-bold">&times;</button>
+            </div>
+            <input type="text" id="member-search-input" oninput="filterMemberSearch()" placeholder="নাম বা আইডি দিয়ে খুঁজুন..." class="w-full p-3 border rounded-xl text-sm focus:outline-none focus:border-emerald-400">
+            <div id="member-search-results" class="overflow-y-auto flex-1 space-y-2 pt-1"></div>
+        </div>
+    </div>
+
+    <div id="member-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 space-y-4" style="max-height:90vh;overflow-y:auto;">
+            <h2 id="modal-title" class="font-bold text-lg">নতুন সদস্য যোগ করুন</h2>
+            <input type="hidden" id="edit-index">
+            <input type="text" id="m-id" placeholder="সদস্য আইডি" class="w-full p-3 border rounded-xl">
+            <input type="text" id="m-name" placeholder="সদস্য নাম" class="w-full p-3 border rounded-xl">
+            <input type="text" id="m-father-name" placeholder="পিতার নাম" class="w-full p-3 border rounded-xl">
+            <div>
+                <label style="display:block;font-size:11px;color:#6b7280;font-weight:700;margin-bottom:4px;padding-left:2px;">জন্ম তারিখ</label>
+                <input type="date" id="m-dob" class="w-full p-3 border rounded-xl">
+            </div>
+            <input type="text" id="m-nid" placeholder="জাতীয় পরিচয়পত্র (NID) নম্বর" class="w-full p-3 border rounded-xl">
+            <input type="text" id="m-phone" placeholder="মোবাইল" class="w-full p-3 border rounded-xl">
+            <div>
+                <!-- ✅ FINAL FIX: label[for] দিয়ে input directly connect — JS click() বাদ -->
+                <!-- Android Chrome-এ label ক্লিক করলে সরাসরি গ্যালারি খোলে -->
+                <input type="file" id="member-photo-input" accept="image/*"
+                    style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;z-index:-1;">
+                <label for="member-photo-input" id="photo-change-label"
+                    style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px;border:1.5px dashed #34d399;border-radius:12px;background:#f0fdf4;color:#059669;font-size:13px;font-weight:700;cursor:pointer;">
+                    <span style="font-size:18px;">🖼️</span>
+                    <span id="photo-label-text">প্রোফাইল ছবি বেছে নিন (ঐচ্ছিক)</span>
+                </label>
+                <div id="photo-preview-wrap" class="hidden mt-2 flex items-center gap-3">
+                    <img id="photo-preview-img" src="" alt="preview" class="w-14 h-14 rounded-full object-cover border-2 border-emerald-400 shadow">
+                    <span class="text-xs text-emerald-600 font-semibold">ছবি নির্বাচিত হয়েছে ✔</span>
+                </div>
+            </div>
+            <input type="text" id="m-address" placeholder="ঠিকানা" class="w-full p-3 border rounded-xl">
+            <input type="text" id="m-institution" placeholder="প্রতিষ্ঠান" class="w-full p-3 border rounded-xl">
+            <div style="border-top:1.5px dashed #d1d5db;padding-top:10px;margin-top:2px;">
+                <div style="font-size:12px;font-weight:800;color:#0f766e;margin-bottom:8px;display:flex;align-items:center;gap:5px;">👤 নমিনির তথ্য (ঐচ্ছিক)</div>
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                    <input type="text" id="m-nominee-name" placeholder="নমিনির নাম" class="w-full p-3 border rounded-xl">
+                    <input type="text" id="m-nominee-phone" placeholder="নমিনির মোবাইল নম্বর" class="w-full p-3 border rounded-xl">
+                    <input type="text" id="m-nominee-relation" placeholder="সদস্যের সাথে সম্পর্ক (যেমনঃ স্ত্রী, ছেলে, বাবা)" class="w-full p-3 border rounded-xl">
+                </div>
+            </div>
+            <input type="number" id="m-initial" placeholder="সঞ্চয় বা প্রাথমিক টাকা" class="w-full p-3 border rounded-xl">
+            <div class="flex gap-2">
+                <button onclick="closeModal()" class="w-1/2 bg-gray-200 p-3 rounded-xl font-bold cursor-pointer">বাতিল</button>
+                <button onclick="handleMemberSubmit()" class="w-1/2 bg-emerald-600 text-white p-3 rounded-xl font-bold cursor-pointer">সংরক্ষণ</button>
+            </div>
+        </div>
+    </div>    <div id="member-action-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 space-y-4">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h2 id="action-modal-title" class="font-bold text-lg text-slate-800">কার্যক্রম</h2>
+                <button onclick="closeActionModal()" class="text-gray-500 hover:text-gray-700 text-xl font-bold">&times;</button>
+            </div>
+            <div class="grid grid-cols-2 gap-3" id="action-modal-buttons">
+                </div>
+        </div>
+    </div>    <div id="txn-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 space-y-4">
+            <h2 id="txn-modal-title" class="font-bold text-lg text-slate-800">লেনদেন যোগ করুন</h2>
+            <input type="hidden" id="txn-member-index">
+            <div>
+                <label class="text-xs text-gray-500 block mb-1">তারিখ ও সময় নির্ধারণ করুন</label>
+                <input type="datetime-local" id="txn-date" class="w-full p-3 border rounded-xl text-sm">
+            </div>
+            <div>
+                <label class="text-xs text-gray-500 block mb-1">লেনদেনের ধরন</label>
+                <select id="txn-type" class="w-full p-3 border rounded-xl bg-white text-gray-700 font-bold">
+                    <option value="deposit" selected>সঞ্চয় (জমা)</option>
+                    <option value="withdraw">উত্তোলন</option>
+                    <option value="admission">ভর্তি ফি</option>
+                    <option value="fine">জরিমানা</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-xs text-gray-500 block mb-1">টাকার পরিমাণ *</label>
+                <input type="number" id="txn-amount" placeholder="টাকা লিখুন" class="w-full p-3 border rounded-xl">
+            </div>
+            <div class="flex gap-2">
+                <button onclick="closeTxnModal()" class="w-1/2 bg-gray-200 p-3 rounded-xl font-bold cursor-pointer">বাতিল</button>
+                <button onclick="submitSavingsTransaction()" class="w-1/2 bg-blue-600 text-white p-3 rounded-xl font-bold cursor-pointer">নিশ্চিত করুন</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="ledger-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-3xl p-6 space-y-4 flex flex-col max-h-[80vh]">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h2 id="ledger-title" class="font-bold text-lg text-slate-800">লেনদেন লেজার</h2>
+                <button onclick="closeLedgerModal()" class="text-gray-500 hover:text-gray-700 text-xl font-bold">&times;</button>
+            </div>
+            <div class="overflow-y-auto flex-1">
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead><tr class="bg-slate-100 text-slate-700 font-bold border-b"><th class="p-2 text-xs">তারিখ ও সময়</th><th class="p-2 text-xs text-center">ধরণ</th><th class="p-2 text-xs text-right">টাকা</th><th class="p-2 text-xs text-center admin-only">অ্যাকশন</th></tr></thead>
+                    <tbody id="ledger-table-body"></tbody>
+                </table>
+                <div id="ledger-empty-msg" class="text-center text-gray-400 py-6 text-sm hidden">কোন লেনদেনের ইতিহাস নেই।</div>
+            </div>
+            <button onclick="closeLedgerModal()" class="w-full bg-slate-800 text-white p-3 rounded-xl font-bold text-sm cursor-pointer">বন্ধ করুন</button>
+        </div>
+    </div>    
+
+    <div id="bank-ledger-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">        <div class="bg-white w-full max-w-xl rounded-3xl p-6 space-y-4 flex flex-col max-h-[80vh]">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h2 class="font-bold text-lg text-indigo-600"><i class="fa-solid fa-building-columns"></i> ব্যাংক লেনদেন লেজার</h2>
+                <div class="flex gap-2">
+                    <button onclick="downloadBankLedgerPDF()" class="bg-red-100 text-red-600 px-3 py-1 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+                    <button onclick="closeBankLedgerModal()" class="text-gray-500 hover:text-gray-700 text-xl font-bold">&times;</button>
+                </div>
+            </div>
+            <div class="overflow-y-auto flex-1">
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead><tr class="bg-slate-100 text-slate-700 font-bold border-b"><th class="p-2 text-xs">তারিখ ও সময়</th><th class="p-2 text-xs text-center">বিবরণ</th><th class="p-2 text-xs text-center">নোট</th><th class="p-2 text-xs text-center">ধরণ</th><th class="p-2 text-xs text-right">টাকা</th><th class="p-2 text-xs text-center admin-only">অ্যাকশন</th></tr></thead>
+                    <tbody id="bank-ledger-table-body"></tbody>
+                </table>
+                <div id="bank-ledger-empty-msg" class="text-center text-gray-400 py-6 text-sm hidden">কোন ব্যাংক লেনদেনের ইতিহাস নেই।</div>
+            </div>
+            <button onclick="closeBankLedgerModal()" class="w-full bg-slate-800 text-white p-3 rounded-xl font-bold text-sm cursor-pointer">বন্ধ করুন</button>
+        </div>
+    </div>    <div id="expense-ledger-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
+        <div class="bg-white w-full max-w-xl rounded-3xl p-6 space-y-4 flex flex-col max-h-[80vh]">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h2 class="font-bold text-lg text-rose-600"><i class="fa-solid fa-receipt"></i> খরচের আলাদা লেজার</h2>
+                <div class="flex gap-2">
+                    <button onclick="downloadExpenseLedgerPDF()" class="bg-red-100 text-red-600 px-3 py-1 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+                    <button onclick="closeExpenseLedgerModal()" class="text-gray-500 hover:text-gray-700 text-xl font-bold">&times;</button>
+                </div>
+            </div>
+            <div class="overflow-y-auto flex-1">
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead><tr class="bg-slate-100 text-slate-700 font-bold border-b"><th class="p-2 text-xs">তারিখ ও সময়</th><th class="p-2 text-xs text-center">খরচের বিবরণ</th><th class="p-2 text-xs text-right">টাকা</th><th class="p-2 text-xs text-center admin-only">অ্যাকশন</th></tr></thead>
+                    <tbody id="expense-ledger-table-body"></tbody>
+                </table>
+                <div id="expense-ledger-empty-msg" class="text-center text-gray-400 py-6 text-sm hidden">কোন খরচের ইতিহাস নেই।</div>
+            </div>
+            <button onclick="closeExpenseLedgerModal()" class="w-full bg-slate-800 text-white p-3 rounded-xl font-bold text-sm cursor-pointer">বন্ধ করুন</button>
+        </div>
+    </div>
+
+    <!-- ===== বিনিয়োগ লেজার মডাল ===== -->
+    <div id="investment-ledger-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
+        <div class="bg-white w-full max-w-xl rounded-3xl p-6 space-y-4 flex flex-col max-h-[80vh]">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h2 class="font-bold text-lg text-teal-600"><i class="fa-solid fa-seedling"></i> বিনিয়োগের লেজার</h2>
+                <div class="flex gap-2 items-center">
+                    <button onclick="downloadInvestmentLedgerPDF()" class="bg-red-100 text-red-600 px-3 py-1 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+                    <button onclick="window.closeInvestmentLedgerModal()" class="text-gray-500 hover:text-gray-700 text-xl font-bold">&times;</button>
+                </div>
+            </div>
+            <div class="admin-only" style="background:linear-gradient(135deg,#f0fdfa,#ccfbf1);border:1.5px solid #5eead4;border-radius:14px;padding:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;">
+                    <div>
+                        <div style="font-size:11px;color:#0f766e;font-weight:700;">মোট বণ্টনযোগ্য মুনাফা</div>
+                        <div id="investment-pool-amount" style="font-size:20px;font-weight:900;color:#0f766e;">৳ 0</div>
+                    </div>
+                    <button onclick="window.openProfitDistributionModal()" style="background:#0f766e;color:#fff;border:none;border-radius:10px;padding:9px 14px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;">📊 মুনাফা বণ্টন করুন</button>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button onclick="window.transferProfitPoolToCash()" style="flex:1;background:#fff;color:#0f766e;border:1.5px solid #0f766e;border-radius:10px;padding:8px 10px;font-size:11px;font-weight:800;cursor:pointer;">💵 ক্যাশে স্থানান্তর করুন</button>
+                    <button onclick="window.correctProfitPool()" style="flex:1;background:#fff;color:#0f766e;border:1px solid #5eead4;border-radius:10px;padding:8px 10px;font-size:11px;font-weight:700;cursor:pointer;">✏️ পুল সংশোধন করুন</button>
+                </div>
+            </div>
+            <div class="overflow-y-auto flex-1">
+                <div id="investment-ledger-list"></div>
+                <div id="investment-ledger-empty-msg" class="text-center text-gray-400 py-6 text-sm hidden">কোনো বিনিয়োগের ইতিহাস নেই।</div>
+            </div>
+            <button onclick="window.closeInvestmentLedgerModal()" class="w-full bg-slate-800 text-white p-3 rounded-xl font-bold text-sm cursor-pointer">বন্ধ করুন</button>
+        </div>
+    </div>
+
+    <!-- ===== বিনিয়োগ রিটার্ন এন্ট্রি মডাল (মূলধন/মুনাফা/লস) ===== -->
+    <div id="investment-return-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 space-y-4 text-center">
+            <div style="width:64px;height:64px;background:#eef2ff;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto;font-size:28px;">📈</div>
+            <h3 id="ir-modal-title" style="font-weight:800;font-size:16px;color:#1e293b;">বিনিয়োগ রিটার্ন এন্ট্রি</h3>
+            <p id="ir-modal-desc" style="font-size:12px;color:#64748b;text-align:left;background:#f8fafc;border-radius:10px;padding:10px 12px;">—</p>
+            <div style="text-align:left;">
+                <label style="display:block;font-size:12px;color:#475569;font-weight:700;margin-bottom:5px;">এন্ট্রির ধরন</label>
+                <select id="ir-type" style="width:100%;padding:11px 12px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:14px;box-sizing:border-box;font-family:inherit;background:#fff;margin-bottom:12px;">
+                    <option value="capital">💰 মূলধন রিটার্ন (আসল টাকা ফেরত)</option>
+                    <option value="profit">📈 মুনাফা (লাভ)</option>
+                    <option value="loss">📉 লস (ক্ষতি)</option>
+                </select>
+                <label style="display:block;font-size:12px;color:#475569;font-weight:700;margin-bottom:5px;">টাকার পরিমাণ</label>
+                <input type="number" id="ir-amount" placeholder="টাকার পরিমাণ লিখুন" style="width:100%;padding:11px 12px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:14px;box-sizing:border-box;font-family:inherit;">
+            </div>
+            <div style="display:flex;gap:10px;">
+                <button onclick="window.closeInvestmentReturnModal()" style="flex:1;background:#f1f5f9;color:#475569;border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;">বাতিল</button>
+                <button onclick="window.submitInvestmentReturn()" style="flex:1;background:#4338ca;color:#fff;border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;">যোগ করুন</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== মুনাফা বণ্টন মডাল ===== -->
+    <div id="profit-distribution-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
+        <div class="bg-white w-full max-w-xl rounded-3xl p-6 space-y-4 flex flex-col max-h-[85vh]">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h2 class="font-bold text-lg text-teal-600">📊 মুনাফা বণ্টন</h2>
+                <button onclick="window.closeProfitDistributionModal()" class="text-gray-500 hover:text-gray-700 text-xl font-bold">&times;</button>
+            </div>
+            <p style="font-size:11px;color:#94a3b8;margin:0;">নিচে সঞ্চয়ের অনুপাতে একটা প্রস্তাবিত পরিমাণ দেখানো হয়েছে — চাইলে যেকোনো ঘরের সংখ্যা বদলে দিন। সব সক্রিয় সদস্যই তালিকায় আছেন, এডমিন ম্যানুয়ালি বেছে বেছে বণ্টন করতে পারবেন।</p>
+            <div style="background:#f0fdfa;border:1px solid #5eead4;border-radius:12px;padding:10px 14px;display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:#0f766e;">
+                <span>পুল: <span id="pd-pool-total">৳ 0</span></span>
+                <span>বণ্টিত হবে: <span id="pd-distributed-total">৳ 0</span></span>
+                <span>বাকি থাকবে: <span id="pd-remaining-total">৳ 0</span></span>
+            </div>
+            <div class="overflow-y-auto flex-1" id="profit-distribution-list"></div>
+            <div id="pd-empty-msg" class="text-center text-gray-400 py-6 text-sm hidden">কোনো সক্রিয় সদস্য পাওয়া যায়নি।</div>
+            <button onclick="window.confirmProfitDistribution()" style="width:100%;background:#0f766e;color:#fff;border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;">✅ বণ্টন নিশ্চিত করুন</button>
+            <button onclick="window.closeProfitDistributionModal()" class="w-full bg-slate-100 text-slate-600 p-3 rounded-xl font-bold text-sm cursor-pointer">বাতিল</button>
+        </div>
+    </div>
+
+    <div id="monthly-report-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">        <div class="bg-white w-full max-w-xl rounded-3xl p-6 space-y-4 flex flex-col max-h-[85vh]" id="monthly-report-print-area">
+            <div class="flex justify-between items-center border-b pb-2 no-print">
+                <h2 class="font-bold text-lg text-indigo-700"><i class="fa-solid fa-chart-line"></i> মাসিক ভিত্তিক সঞ্চয় রিপোর্ট</h2>
+                <button onclick="closeMonthlyReportModal()" class="text-gray-500 hover:text-gray-700 text-xl font-bold">&times;</button>
+            </div>
+            <div class="flex gap-2 items-center bg-slate-50 p-2 rounded-xl no-print">
+                <label class="text-xs font-bold text-gray-600 whitespace-nowrap">মাস সিলেক্ট করুন:</label>
+                <select id="report-month-select" onchange="generateMonthlyReport()" class="w-full p-2 text-xs border rounded-lg bg-white font-bold text-slate-700"></select>
+            </div>
+            <div class="hidden text-center space-y-1 mb-2" id="print-report-header">
+                <h1 class="text-xl font-bold text-emerald-600">সমিতি ম্যানেজার রিপোর্ট</h1>
+                <p id="print-report-month-title" class="text-sm font-bold text-slate-700"></p>
+                <hr class="border-slate-300">
+            </div>
+            <div class="overflow-y-auto flex-1">
+                <table class="w-full text-left text-xs border-collapse">
+                    <thead><tr class="bg-slate-100 text-slate-700 font-bold border-b"><th class="p-2">সদস্য আইডি</th><th class="p-2">সদস্যের নাম</th><th class="p-2 text-right">এই মাসের সঞ্চয়</th></tr></thead>
+                    <tbody id="monthly-report-table-body"></tbody>
+                </table>
+                <div id="monthly-report-empty-msg" class="text-center text-gray-400 py-8 text-xs hidden">এই মাসে কোনো সঞ্চয় জমা হয়নি।</div>
+            </div>
+            <div class="border-t pt-3 flex justify-between items-center text-sm font-bold text-slate-800 bg-slate-50 p-3 rounded-xl">
+                <span>নির্বাচিত মাসের মোট জমা:</span><span id="monthly-report-total" class="text-blue-600 text-base">৳ 0</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 no-print pt-2">
+                <button onclick="openExportModal()" class="bg-indigo-600 text-white p-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 cursor-pointer hover:bg-indigo-700"><i class="fa-solid fa-download"></i> রিপোর্ট ডাউনলোড</button>
+                <button onclick="shareReportData()" class="bg-sky-600 text-white p-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 cursor-pointer hover:bg-sky-700"><i class="fa-solid fa-copy"></i> টেক্সট শেয়ার</button>
+            </div>
+            <button onclick="closeMonthlyReportModal()" class="w-full bg-slate-800 text-white p-3 mt-2 rounded-xl font-bold text-xs cursor-pointer no-print">বন্ধ করুন</button>
+        </div>
+    </div>    
+
+    <!-- ===== ব্যাংক লেনদেন মডাল (FAB থেকে খুলবে) ===== -->
+    <div id="bank-entry-modal" class="inline-form-modal" onclick="if(event.target===this)closeBankModal()">
+        <div class="inline-form-sheet">
+            <div class="sheet-handle"></div>
+            <button class="sheet-close-btn" onclick="closeBankModal()">✕</button>
+            <div class="sheet-title">🏦 ব্যাংক লেনদেন</div>
+            <input type="number" id="bank-amount" placeholder="টাকার পরিমাণ">
+            <input type="datetime-local" id="bank-date" style="color:#475569;">
+            <input type="text" id="bank-note" placeholder="নোট লিখুন">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;">
+                <button onclick="handleBankAction('to_bank'); closeBankModal();"
+                    style="background:#4f46e5;color:#fff;padding:12px;border:none;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;">
+                    💳 জমা
+                </button>
+                <button onclick="handleBankAction('from_bank'); closeBankModal();"
+                    style="background:#334155;color:#fff;padding:12px;border:none;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;">
+                    🏧 উত্তোলন
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== সাহায্য ও সাপোর্ট মডাল (নিচের "সাহায্য" বাটন থেকে খুলবে) ===== -->
+    <div id="help-support-modal" class="inline-form-modal" onclick="if(event.target===this)closeHelpSupportModal()">
+        <div class="inline-form-sheet" style="max-height:82vh;overflow-y:auto;">
+            <div class="sheet-handle"></div>
+            <button class="sheet-close-btn" onclick="closeHelpSupportModal()">✕</button>
+            <div class="sheet-title">❓ সাহায্য ও সাপোর্ট</div>
+
+            <!-- ট্যাব সুইচার -->
+            <div style="display:flex;gap:6px;background:#f1f5f9;padding:4px;border-radius:14px;margin-bottom:16px;" id="help-tab-switcher">
+                <button id="help-tab-guide-btn" onclick="switchHelpTab('guide')" class="help-tab-btn help-tab-active admin-only">📘 গাইড</button>
+                <button id="help-tab-support-btn" onclick="switchHelpTab('support')" class="help-tab-btn">🆘 সাপোর্ট</button>
+            </div>
+
+            <!-- ===== গাইড ট্যাব ===== -->
+            <div id="help-tab-guide">
+                <p style="font-size:12px;color:#94a3b8;margin-bottom:10px;">ধাপে ধাপে পড়ে সহজে শিখে নিন কীভাবে অ্যাপটি ব্যবহার করবেন — যেকোনো একটিতে চাপুন 👇</p>
+
+                <div class="help-guide-item" id="help-rules-item" onclick="window.openRulesViewerModal()" style="display:none;">
+                    <span class="help-guide-icon" style="background:#eef2ff;color:#3730a3;">📜</span>
+                    <span class="help-guide-text">
+                        <span class="help-guide-title">সমিতির নিয়মাবলী</span>
+                        <span class="help-guide-desc">আপনার সম্মতি দেওয়া নিয়মাবলী দেখুন</span>
+                    </span>
+                    <i class="fa-solid fa-chevron-right help-guide-chevron"></i>
+                </div>
+
+                <div class="help-guide-item" onclick="toggleGuideItem('g1')">
+                    <span class="help-guide-icon" style="background:#eef2ff;color:#4338ca;">👤</span>
+                    <span class="help-guide-text">
+                        <span class="help-guide-title">নতুন সদস্য যোগ করা</span>
+                        <span class="help-guide-desc">ধাপে ধাপে পড়ুন</span>
+                    </span>
+                    <i class="fa-solid fa-chevron-down help-guide-chevron" id="g1-chevron"></i>
+                </div>
+                <div class="help-guide-detail" id="g1-detail">
+                    <ol>
+                        <li>নিচের ডান কোণায় সবুজ <b>"+"</b> বাটনে চাপুন।</li>
+                        <li>তালিকা থেকে <b>"+নতুন সদস্য"</b> নির্বাচন করুন।</li>
+                        <li>নাম, ফোন নম্বর, ঠিকানা ও (চাইলে) ছবি দিন।</li>
+                        <li><b>"সংরক্ষণ করুন"</b> বাটনে চাপলেই সদস্য তালিকায় যুক্ত হয়ে যাবে।</li>
+                    </ol>
+                </div>
+
+                <div class="help-guide-item" onclick="toggleGuideItem('g2')">
+                    <span class="help-guide-icon" style="background:#ecfdf5;color:#047857;">💰</span>
+                    <span class="help-guide-text">
+                        <span class="help-guide-title">চাঁদা/জমা এন্ট্রি করা</span>
+                        <span class="help-guide-desc">ধাপে ধাপে পড়ুন</span>
+                    </span>
+                    <i class="fa-solid fa-chevron-down help-guide-chevron" id="g2-chevron"></i>
+                </div>
+                <div class="help-guide-detail" id="g2-detail">
+                    <ol>
+                        <li>নিচের <b>"+"</b> বাটনে চাপুন, তারপর <b>"দ্রুত সঞ্চয়"</b> নির্বাচন করুন।</li>
+                        <li>অথবা <b>"সদস্য"</b> ট্যাব থেকে সংশ্লিষ্ট সদস্যের নামে চেপে <b>"জমা করুন"</b> বাটন ব্যবহার করুন।</li>
+                        <li>টাকার পরিমাণ ও (চাইলে) নোট লিখে সংরক্ষণ করুন — সাথে সাথে ব্যালেন্স আপডেট হয়ে যাবে।</li>
+                    </ol>
+                </div>
+
+                <div class="help-guide-item" onclick="toggleGuideItem('g3')">
+                    <span class="help-guide-icon" style="background:#fff1f2;color:#be123c;">🏦</span>
+                    <span class="help-guide-text">
+                        <span class="help-guide-title">ব্যাংক লেনদেন করা</span>
+                        <span class="help-guide-desc">ধাপে ধাপে পড়ুন</span>
+                    </span>
+                    <i class="fa-solid fa-chevron-down help-guide-chevron" id="g3-chevron"></i>
+                </div>
+                <div class="help-guide-detail" id="g3-detail">
+                    <ol>
+                        <li>নিচের <b>"+"</b> বাটনে চাপুন, তারপর <b>"ব্যাংক লেনদেন"</b> নির্বাচন করুন।</li>
+                        <li>টাকার পরিমাণ, তারিখ ও নোট লিখুন।</li>
+                        <li>জমা না উত্তোলন — সঠিকটি বেছে সংরক্ষণ করুন। ব্যাংক ব্যালেন্স নিজে থেকেই হালনাগাদ হবে।</li>
+                    </ol>
+                </div>
+
+                <div class="help-guide-item" onclick="toggleGuideItem('g4')">
+                    <span class="help-guide-icon" style="background:#fffbeb;color:#b45309;">💾</span>
+                    <span class="help-guide-text">
+                        <span class="help-guide-title">ডেটা ব্যাকআপ নেওয়া</span>
+                        <span class="help-guide-desc">ধাপে ধাপে পড়ুন</span>
+                    </span>
+                    <i class="fa-solid fa-chevron-down help-guide-chevron" id="g4-chevron"></i>
+                </div>
+                <div class="help-guide-detail" id="g4-detail">
+                    <ol>
+                        <li>নিচের <b>"মেনু"</b> বাটনে চাপুন।</li>
+                        <li><b>"ব্যাকআপ নামান"</b> বাটনে চাপুন — একটি ফাইল ডাউনলোড হবে।</li>
+                        <li>ফাইলটি নিরাপদ জায়গায় (যেমন Google Drive) রেখে দিন। প্রয়োজনে <b>"রিস্টোর ফাইল"</b> দিয়ে আবার ফিরিয়ে আনতে পারবেন।</li>
+                    </ol>
+                </div>
+
+                <div class="help-guide-item" onclick="toggleGuideItem('g5')">
+                    <span class="help-guide-icon" style="background:#f0f9ff;color:#0369a1;">📊</span>
+                    <span class="help-guide-text">
+                        <span class="help-guide-title">মাসিক রিপোর্ট দেখা</span>
+                        <span class="help-guide-desc">ধাপে ধাপে পড়ুন</span>
+                    </span>
+                    <i class="fa-solid fa-chevron-down help-guide-chevron" id="g5-chevron"></i>
+                </div>
+                <div class="help-guide-detail" id="g5-detail">
+                    <ol>
+                        <li>নিচের <b>"রিপোর্ট"</b> বাটনে চাপুন।</li>
+                        <li><b>"মাসিক সঞ্চয় রিপোর্ট (সকল সদস্য)"</b> নির্বাচন করুন।</li>
+                        <li>মাস বেছে নিলেই সব সদস্যের সেই মাসের জমার হিসাব দেখতে পাবেন — চাইলে প্রিন্ট বা PDF-ও করা যায়।</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- ===== সাপোর্ট ট্যাব ===== -->
+            <div id="help-tab-support" style="display:none;">
+                <p style="font-size:12px;color:#94a3b8;margin-bottom:10px;">কোনো সমস্যা হলে সরাসরি যোগাযোগ করুন 👇</p>
+
+                <a href="https://wa.me/8801919276638" target="_blank" rel="noopener" class="help-support-btn" style="background:linear-gradient(135deg,#25D366,#128C7E);">
+                    <i class="fa-brands fa-whatsapp" style="font-size:22px;"></i>
+                    <span>
+                        <span class="help-support-title">WhatsApp-এ মেসেজ করুন</span>
+                        <span class="help-support-sub">+৮৮০ ১৯১৯-২৭৬৬৩৮</span>
+                    </span>
+                </a>
+
+                <a href="https://www.facebook.com/share/1CzbmWRqSB/" target="_blank" rel="noopener" class="help-support-btn" style="background:linear-gradient(135deg,#1877F2,#0d5cd6);">
+                    <i class="fa-brands fa-facebook" style="font-size:22px;"></i>
+                    <span>
+                        <span class="help-support-title">ফেসবুক পেজে মেসেজ করুন</span>
+                        <span class="help-support-sub">ডিজিটাল সমিতি ম্যানেজার</span>
+                    </span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== খরচের এন্ট্রি মডাল (FAB থেকে খুলবে) ===== -->
+    <div id="expense-entry-modal" class="inline-form-modal" onclick="if(event.target===this)closeExpenseModal()">
+        <div class="inline-form-sheet">
+            <div class="sheet-handle"></div>
+            <button class="sheet-close-btn" onclick="closeExpenseModal()">✕</button>
+            <div class="sheet-title">🧾 খরচের এন্ট্রি</div>
+            <input type="text" id="expense-purpose" placeholder="খরচের বিবরণ">
+            <input type="number" id="expense-amount" placeholder="খরচের টাকা">
+            <input type="datetime-local" id="expense-date" style="color:#475569;">
+            <button onclick="handleExpenseSubmit(); closeExpenseModal();"
+                style="width:100%;background:#e11d48;color:#fff;padding:13px;border:none;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px;">
+                ✅ খরচ যোগ করুন
+            </button>
+        </div>
+    </div>
+
+    <!-- ===== বিনিয়োগ এন্ট্রি মডাল (শুধু এডমিন — FAB থেকে খুলবে) ===== -->
+    <div id="investment-entry-modal" class="inline-form-modal" onclick="if(event.target===this)window.closeInvestmentModal()">
+        <div class="inline-form-sheet">
+            <div class="sheet-handle"></div>
+            <button class="sheet-close-btn" onclick="window.closeInvestmentModal()">✕</button>
+            <div class="sheet-title">🌱 নতুন বিনিয়োগ</div>
+            <input type="text" id="investment-title" placeholder="কোথায় বিনিয়োগ করছেন (যেমন: দোকান, জমি)">
+            <input type="number" id="investment-amount" placeholder="বিনিয়োগের টাকা">
+            <input type="datetime-local" id="investment-date" style="color:#475569;">
+            <input type="text" id="investment-note" placeholder="নোট (ঐচ্ছিক)">
+            <p style="font-size:11px;color:#94a3b8;margin:2px 0 0;">💡 এই টাকা আপনার "ক্যাশ ইন হ্যান্ড" থেকে কেটে "মোট বিনিয়োগ"-এ যোগ হবে।</p>
+            <button onclick="window.handleInvestmentSubmit();"
+                style="width:100%;background:#0d9488;color:#fff;padding:13px;border:none;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px;">
+                ✅ বিনিয়োগ যোগ করুন
+            </button>
+        </div>
+    </div>
+
+    <div id="export-format-modal" class="hidden fixed inset-0 bg-black/60 z-[60] items-end justify-center" style="align-items:flex-end">
+        <div class="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-6 space-y-4 animate-slide-up sm:animate-none">
+            <div class="w-12 h-1" style="background:#d1d5db;border-radius:9999px;margin:0 auto 8px;display:block;height:6px"></div>
+            <h2 class="font-bold text-xl text-center text-slate-800 mb-4">ফরম্যাট সিলেক্ট করুন</h2>
+            <button onclick="downloadReportPDF()" class="w-full flex items-center gap-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 p-4 rounded-2xl transition cursor-pointer text-left">
+                <div class="bg-red-100 text-red-600 p-3 rounded-xl flex items-center justify-center"><i class="fa-solid fa-file-pdf" style="font-size:1.5rem"></i></div>
+                <div><h3 class="font-bold text-slate-800 text-base">PDF ডকুমেন্ট</h3><p class="text-xs text-slate-500">প্রিন্ট বা শেয়ার করার জন্য সেরা</p></div>
+                <i class="fa-solid fa-chevron-right ml-auto text-slate-400"></i>
+            </button>
+            <button onclick="downloadReportCSV()" class="w-full flex items-center gap-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 p-4 rounded-2xl transition cursor-pointer text-left">
+                <div class="bg-emerald-100 text-emerald-600 p-3 rounded-xl flex items-center justify-center"><i class="fa-solid fa-file-excel" style="font-size:1.5rem"></i></div>
+                <div><h3 class="font-bold text-slate-800 text-base">Excel/CSV ফাইল</h3><p class="text-xs text-slate-500">স্প্রেডশিট বা এক্সেলে দেখার জন্য</p></div>
+                <i class="fa-solid fa-chevron-right ml-auto text-slate-400"></i>
+            </button>
+            <button onclick="closeExportModal()" class="w-full bg-slate-200 text-slate-700 p-3 rounded-xl font-bold mt-2 cursor-pointer">বাতিল</button>
+        </div>
+    </div>
+    
+    <div id="loading-spinner" class="hidden fixed inset-0 bg-white/90 z-[70] flex flex-col items-center justify-center">
+        <i class="fa-solid fa-circle-notch fa-spin text-5xl text-indigo-600 mb-4"></i>
+        <p class="font-bold text-slate-700 text-lg">ফাইল তৈরি হচ্ছে...</p>
+        <p class="text-xs text-slate-500 mt-2">অনুগ্রহ করে অপেক্ষা করুন</p>
+    </div>
+
+    <!-- ── 🚪 সঞ্চয় নিষ্পত্তি ও অ্যাকাউন্ট ক্লোজ মডাল ── -->
+    <div id="settlement-modal" class="hidden fixed inset-0 bg-black/60 items-center justify-center p-4" style="z-index:100001;">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 space-y-4" style="max-height:90vh;overflow-y:auto;">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h2 class="font-bold text-lg text-rose-700">🚪 সঞ্চয় নিষ্পত্তি</h2>
+                <button onclick="closeSettlementModal()" class="text-xl font-bold text-gray-500">&times;</button>
+            </div>
+            <p id="settlement-member-name" class="text-sm font-bold text-slate-700">—</p>
+            <p class="text-xs text-gray-400 -mt-2">নিচে যে পরিমাণ টাকা সদস্যকে হাতে হাতে পরিশোধ করছেন, সেই পরিমাণ লিখুন।</p>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">১. সঞ্চয় পরিশোধ (৳)</label>
+                <input type="number" id="settlement-savings-amount" placeholder="0" class="w-full p-3 border rounded-xl" oninput="updateSettlementTotal()">
+                <p class="text-[11px] text-gray-400 mt-1">এই টাকা সঞ্চয় ও ক্যাশ ইন হ্যান্ড — দুই জায়গা থেকেই বিয়োগ হবে।</p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">২. লাভ পরিশোধ (৳)</label>
+                <input type="number" id="settlement-profit-amount" placeholder="0" class="w-full p-3 border rounded-xl" oninput="updateSettlementTotal()">
+                <p class="text-[11px] text-gray-400 mt-1">এই টাকা শুধু ক্যাশ ইন হ্যান্ড থেকে বিয়োগ হবে।</p>
+            </div>
+
+            <div class="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-3 flex justify-between items-center">
+                <span class="font-bold text-emerald-700 text-sm">মোট পরিশোধ:</span>
+                <span id="settlement-total-amount" class="font-bold text-emerald-700 text-xl">৳ 0</span>
+            </div>
+
+            <div class="bg-red-50 border-2 border-red-200 rounded-xl p-3">
+                <p class="text-xs font-bold text-red-700 mb-2">⚠️ সতর্কতা: এই কাজটি সদস্যের অ্যাকাউন্ট সক্রিয় তালিকা থেকে সরিয়ে দেবে। ভুলবশত করে থাকলে পরে "ক্লোজড অ্যাকাউন্ট" থেকে ফিরিয়ে আনা যাবে, কিন্তু এখনই সতর্কতার সাথে নিশ্চিত করুন।</p>
+                <label class="block text-xs font-bold text-red-700 mb-1">নিশ্চিত করতে সদস্যের নাম হুবহু টাইপ করুন:</label>
+                <p id="settlement-confirm-target-name" class="text-xs font-bold text-slate-700 bg-white border border-red-200 rounded-lg px-2 py-1 mb-2 inline-block">—</p>
+                <input type="text" id="settlement-confirm-name-input" placeholder="এখানে সদস্যের নাম লিখুন" class="w-full p-3 border-2 border-red-200 rounded-xl" oninput="updateSettlementConfirmState()">
+            </div>
+
+            <div class="flex gap-3 pt-1">
+                <button onclick="closeSettlementModal()" class="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl">বাতিল</button>
+                <button id="settlement-confirm-btn" onclick="submitAccountSettlement()" disabled class="flex-1 bg-gray-300 text-gray-500 font-bold py-3 rounded-xl cursor-not-allowed">✅ নিশ্চিত করুন ও রশিদ তৈরি করুন</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── 🔒 ক্লোজড অ্যাকাউন্ট (পুনরায় চালু করার জন্য) ── -->
+    <div id="closed-accounts-modal" class="hidden fixed inset-0 bg-black/60 items-center justify-center p-4" style="z-index:100001;">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 space-y-4" style="max-height:90vh;overflow-y:auto;">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h2 class="font-bold text-lg text-slate-700">🔒 ক্লোজড অ্যাকাউন্ট</h2>
+                <button onclick="closeClosedAccountsModal()" class="text-xl font-bold text-gray-500">&times;</button>
+            </div>
+            <p class="text-xs text-gray-400 -mt-2">ভুলবশত ক্লোজ হয়ে যাওয়া অ্যাকাউন্ট এখান থেকে পুনরায় চালু করতে পারবেন — সঞ্চয়, লাভ ও ক্যাশ ইন হ্যান্ড আগের অবস্থায় ফিরে আসবে।</p>
+            <div id="closed-accounts-list" class="space-y-3"></div>
+            <p id="closed-accounts-empty-msg" class="text-center text-gray-400 py-6 text-sm hidden">কোনো ক্লোজড অ্যাকাউন্ট নেই।</p>
+        </div>
+    </div>
+
+    <!-- ── 📜 নিয়মাবলী ভিউয়ার (সদস্যরা যেকোনো সময় দেখতে পারবেন) ── -->
+    <div id="rules-viewer-modal" class="hidden fixed inset-0 bg-black/60 items-center justify-center p-4" style="z-index:100001;">
+        <div class="bg-white w-full max-w-md rounded-3xl p-6 space-y-4" style="max-height:85vh;display:flex;flex-direction:column;">
+            <div class="flex justify-between items-center border-b pb-2" style="flex-shrink:0;">
+                <h2 class="font-bold text-lg text-indigo-700">📜 সমিতির নিয়মাবলী</h2>
+                <button onclick="window.closeRulesViewerModal()" class="text-xl font-bold text-gray-500">&times;</button>
+            </div>
+            <div style="flex:1;overflow-y:auto;font-size:13.5px;line-height:1.9;color:#334155;white-space:pre-wrap;word-break:break-word;" id="rules-viewer-text"></div>
+            <div style="flex-shrink:0;font-size:10.5px;color:#94a3b8;text-align:center;">ভার্সন: <span id="rules-viewer-version"></span></div>
+        </div>
+    </div>
+
+    <!-- ── 📋 নিয়মাবলী সম্মতির অবস্থা (এডমিন) ── -->
+    <div id="rule-acceptance-status-modal" class="hidden fixed inset-0 bg-black/60 items-center justify-center p-4" style="z-index:100001;">
+        <div class="bg-white w-full max-w-md rounded-3xl p-6 space-y-3" style="max-height:88vh;display:flex;flex-direction:column;">
+            <div class="flex justify-between items-center border-b pb-2" style="flex-shrink:0;">
+                <h2 class="font-bold text-lg text-indigo-700">📋 সম্মতির অবস্থা</h2>
+                <button onclick="window.closeRuleAcceptanceStatusModal()" class="text-xl font-bold text-gray-500">&times;</button>
+            </div>
+            <p style="font-size:11px;color:#94a3b8;flex-shrink:0;">বর্তমান নিয়মাবলীর ভার্সন: <span id="ras-current-version" style="font-weight:800;color:#4338ca;"></span></p>
+            <div id="ras-list" style="flex:1;overflow-y:auto;"></div>
+        </div>
+    </div>
+
+
+    <!-- ── 💰 তহবিল ও অন্যান্য ফান্ড ── -->
+    <div id="other-fund-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h2 class="font-bold text-lg text-amber-700"><i class="fa-solid fa-coins"></i></h2>
+                <button onclick="closeOtherFundModal()" class="text-xl font-bold text-gray-500">&times;</button>
+            </div>
+
+            <input type="hidden" id="other-fund-edit-index">
+
+            <div>
+                <label class="text-xs text-gray-500 block mb-1">টাকার পরিমাণ *</label>
+                <input type="number" id="other-fund-amount" placeholder="টাকা লিখুন" class="w-full p-3 border rounded-xl">
+            </div>
+
+            <div>
+                <label class="text-xs text-gray-500 block mb-1">সদস্য সিলেক্ট করুন (ঐচ্ছিক)</label>
+                <select id="other-fund-member" onfocus="showOtherFundMembers()" class="w-full p-3 border rounded-xl">
+                    <option value="">নেই (ঐচ্ছিক)</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="text-xs text-gray-500 block mb-1">বিবরণ</label>
+                <input type="text" id="other-fund-purpose" placeholder="বিবরণ লিখুন" class="w-full p-3 border rounded-xl">
+            </div>
+
+            <div>
+                <label class="text-xs text-gray-500 block mb-1">তারিখ ও সময়</label>
+                <input type="datetime-local" id="other-fund-date" class="w-full p-3 border rounded-xl">
+            </div>
+
+            <div class="flex gap-2">
+                <button onclick="closeOtherFundModal()" class="w-1/2 bg-gray-200 p-3 rounded-xl font-bold">বাতিল</button>
+                <button onclick="submitOtherFund()" class="w-1/2 bg-amber-600 text-white p-3 rounded-xl font-bold">সংরক্ষণ</button>
+            </div>
+
+            <div class="border-t pt-3">
+                <h3 class="font-bold text-sm text-slate-700 mb-2">ফান্ড হিস্টোরি</h3>
+                <div id="other-fund-history" class="space-y-2"></div>
+            </div>
+        </div>
+    </div>
+
+    </div><!-- /#main-app -->
+
+
+    <script type="module" src="app.js"></script>
+
+    <!-- ===== Speed Dial FAB + Modal JS ===== -->
+    <script>
+        /* --- সদস্য তালিকা ফুল-স্ক্রিন ভিউ খোলা/বন্ধ করা --- */
+        function openMemberFullscreen() {
+            var section = document.getElementById('member-list-section');
+            if (!section) return;
+            var mainApp = document.getElementById('main-app');
+            var topPad = (mainApp && mainApp.style.paddingTop) ? mainApp.style.paddingTop : '60px';
+            section.style.top = topPad;
+            section.classList.add('mfs-open');
+            document.body.style.overflow = 'hidden';
+            if (window._pushModalHistory) window._pushModalHistory(closeMemberFullscreen);
+        }
+        function closeMemberFullscreen() {
+            var section = document.getElementById('member-list-section');
+            if (section) section.classList.remove('mfs-open');
+            document.body.style.overflow = '';
+        }
+        /* পুরনো নাম থেকে compat (আগে কোথাও কল হয়ে থাকলে) */
+        function toggleMemberPanel() { openMemberFullscreen(); }
+
+        /* --- Speed Dial FAB --- */
+        function toggleFabMenu() {
+            const btn = document.getElementById('fab-main-btn');
+            const group = document.getElementById('fab-sub-group');
+            const overlay = document.getElementById('fab-overlay');
+            const isOpen = btn.classList.contains('open');
+            if (isOpen) {
+                btn.classList.remove('open');
+                group.classList.remove('visible');
+                overlay.classList.remove('active');
+                btn.querySelector('.fab-icon').textContent = '+';
+            } else {
+                closeBottomMenu(); closeReportSheet(); closeHelpSupportModal(); // দুটো শিট একসাথে খোলা যাবে না
+                btn.classList.add('open');
+                group.classList.add('visible');
+                overlay.classList.add('active');
+                btn.querySelector('.fab-icon').textContent = '×';
+            }
+        }
+        function closeFabMenu() {
+            const btn = document.getElementById('fab-main-btn');
+            const group = document.getElementById('fab-sub-group');
+            const overlay = document.getElementById('fab-overlay');
+            btn.classList.remove('open');
+            group.classList.remove('visible');
+            overlay.classList.remove('active');
+            btn.querySelector('.fab-icon').textContent = '+';
+        }
+
+        /* ===================================================================
+           ✅ Bottom Navigation Bar
+           =================================================================== */
+        function _bnSetActive(id) {
+            document.querySelectorAll('#bottom-nav-bar .bn-item').forEach(function(b) {
+                b.classList.remove('bn-active');
+            });
+            var el = document.getElementById(id);
+            if (el) el.classList.add('bn-active');
+        }
+
+        /* হোম — ড্যাশবোর্ডে ফিরে যাও, সদস্য তালিকা ফুল-স্ক্রিন খোলা থাকলে বন্ধ করে দাও */
+        function bnGoHome() {
+            _bnSetActive('bn-home');
+            closeBottomMenu(); closeReportSheet(); closeFabMenu(); closeMemberFullscreen(); closeHelpSupportModal();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        /* সদস্য — সদস্য তালিকা ফুল-স্ক্রিন ভিউ খোলো */
+        function bnGoMembers() {
+            _bnSetActive('bn-members');
+            closeBottomMenu(); closeReportSheet(); closeFabMenu(); closeHelpSupportModal();
+            openMemberFullscreen();
+        }
+
+        /* রিপোর্ট — স্লাইড-আপ শিটে সব রিপোর্ট অপশন */
+        function bnGoReport() {
+            _bnSetActive('bn-report');
+            closeBottomMenu(); closeFabMenu(); closeMemberFullscreen(); closeHelpSupportModal();
+            var sheet   = document.getElementById('report-sheet');
+            var overlay = document.getElementById('report-sheet-overlay');
+            sheet.classList.add('active');
+            overlay.classList.add('active');
+            if (window._pushModalHistory) window._pushModalHistory(closeReportSheet);
+        }
+        function closeReportSheet() {
+            var sheet   = document.getElementById('report-sheet');
+            var overlay = document.getElementById('report-sheet-overlay');
+            if (sheet)   sheet.classList.remove('active');
+            if (overlay) overlay.classList.remove('active');
+        }
+
+        /* মেনু — স্লাইড-আপ শিটে সব ফাংশন + লগআউট */
+        function toggleBottomMenu() {
+            _bnSetActive('bn-menu');
+            var panel   = document.getElementById('menu-panel');
+            var overlay = document.getElementById('menu-panel-overlay');
+            var isOpen  = panel.classList.contains('active');
+            if (isOpen) {
+                closeBottomMenu();
+            } else {
+                closeReportSheet(); closeFabMenu(); closeMemberFullscreen(); closeHelpSupportModal();
+                panel.classList.add('active');
+                overlay.classList.add('active');
+                if (window._pushModalHistory) window._pushModalHistory(closeBottomMenu);
+            }
+        }
+        function closeBottomMenu() {
+            var panel   = document.getElementById('menu-panel');
+            var overlay = document.getElementById('menu-panel-overlay');
+            if (panel)   panel.classList.remove('active');
+            if (overlay) overlay.classList.remove('active');
+        }
+        /* পুরনো নাম থেকে compat (app.js-এর কিছু জায়গায় এই নামে call হতে পারে) */
+        function closeMenuPanel()  { closeBottomMenu(); }
+        function toggleMenuPanel() { toggleBottomMenu(); }
+
+        /* --- ব্যাংক মডাল --- */
+        function openBankModal() {
+            const m = document.getElementById('bank-entry-modal');
+            m.classList.add('show');
+            // ডিফল্ট তারিখ ও সময় সেট
+            const now = new Date();
+            const local = new Date(now - now.getTimezoneOffset() * 60000)
+                            .toISOString().slice(0, 16);
+            const dt = document.getElementById('bank-date');
+            if (dt && !dt.value) dt.value = local;
+            setTimeout(() => document.getElementById('bank-amount')?.focus(), 100);
+        }
+        function closeBankModal() {
+            document.getElementById('bank-entry-modal').classList.remove('show');
+        }
+
+        /* --- সাহায্য ও সাপোর্ট মডাল --- */
+        function openHelpSupportModal() {
+            _bnSetActive('bn-help');
+            closeBottomMenu(); closeReportSheet(); closeFabMenu(); closeMemberFullscreen();
+            const m = document.getElementById('help-support-modal');
+            m.classList.add('show');
+            // ✅ সাধারণ সদস্যদের জন্য গাইড ট্যাব লুকানো থাকে — তাই সরাসরি সাপোর্ট ট্যাব দেখাও
+            const isAdmin = window.isAdminVerified ? window.isAdminVerified() : false;
+            switchHelpTab(isAdmin ? 'guide' : 'support');
+            if (window._pushModalHistory) window._pushModalHistory(closeHelpSupportModal);
+        }
+        function closeHelpSupportModal() {
+            document.getElementById('help-support-modal').classList.remove('show');
+        }
+        /* গাইড আইটেম অ্যাকর্ডিয়ন (ক্লিক করলে খুলবে/বন্ধ হবে) */
+        function toggleGuideItem(id) {
+            const detail  = document.getElementById(id + '-detail');
+            const chevron = document.getElementById(id + '-chevron');
+            if (!detail) return;
+            const isOpen = detail.classList.contains('open');
+            // একটার বেশি একসাথে খোলা না থাকুক — বাকিগুলো বন্ধ করে দাও
+            document.querySelectorAll('.help-guide-detail.open').forEach(el => {
+                el.classList.remove('open');
+                const c = document.getElementById(el.id.replace('-detail', '-chevron'));
+                if (c) c.classList.remove('rotated');
+            });
+            if (!isOpen) {
+                detail.classList.add('open');
+                if (chevron) chevron.classList.add('rotated');
+            }
+        }
+        function switchHelpTab(tab) {
+            const guideTab = document.getElementById('help-tab-guide');
+            const supportTab = document.getElementById('help-tab-support');
+            const guideBtn = document.getElementById('help-tab-guide-btn');
+            const supportBtn = document.getElementById('help-tab-support-btn');
+            if (tab === 'support') {
+                guideTab.style.display = 'none';
+                supportTab.style.display = 'block';
+                guideBtn.classList.remove('help-tab-active');
+                supportBtn.classList.add('help-tab-active');
+            } else {
+                guideTab.style.display = 'block';
+                supportTab.style.display = 'none';
+                supportBtn.classList.remove('help-tab-active');
+                guideBtn.classList.add('help-tab-active');
+            }
+        }
+
+        /* --- খরচ মডাল --- */
+        function openExpenseModal() {
+            const m = document.getElementById('expense-entry-modal');
+            m.classList.add('show');
+            const now = new Date();
+            const local = new Date(now - now.getTimezoneOffset() * 60000)
+                            .toISOString().slice(0, 16);
+            const dt = document.getElementById('expense-date');
+            if (dt && !dt.value) dt.value = local;
+            setTimeout(() => document.getElementById('expense-purpose')?.focus(), 100);
+        }
+        function closeExpenseModal() {
+            document.getElementById('expense-entry-modal').classList.remove('show');
+        }
+
+        /* --- বিনিয়োগ এন্ট্রি মডাল --- */
+        window._openInvestmentModalUI = function() {
+            const m = document.getElementById('investment-entry-modal');
+            if (!m) return;
+            m.classList.add('show');
+            const now = new Date();
+            const local = new Date(now - now.getTimezoneOffset() * 60000)
+                            .toISOString().slice(0, 16);
+            const dt = document.getElementById('investment-date');
+            if (dt && !dt.value) dt.value = local;
+            setTimeout(() => document.getElementById('investment-title')?.focus(), 100);
+        };
+        window._closeInvestmentModalUI = function() {
+            document.getElementById('investment-entry-modal').classList.remove('show');
+        };
+
+        /* Escape key দিয়ে মডাল বন্ধ */
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeBankModal();
+                closeExpenseModal();
+                closeFabMenu();
+                closeMenuPanel();
+            }
+        });
+    </script>
+
+<!-- ====================================================================
+     সদস্য প্রোফাইল ও লেনদেন খাতা — Member Profile & Ledger Modal
+     খুলবে: সদস্য তালিকায় নামে ক্লিক করলে
+     বন্ধ হবে: 'বন্ধ করুন' বাটনে ক্লিক করলে বা Escape চাপলে
+===================================================================== -->
+<div id="member-profile-modal">
+  <div id="mp-panel">
+
+    <!-- ── Sticky Toolbar ── -->
+    <div id="mp-toolbar">
+      <button class="mp-btn" onclick="closeMemberProfile()" title="বন্ধ করুন (Esc)">
+        <span>✕</span> বন্ধ করুন
+      </button>
+      <div style="font-size:11px;font-weight:700;color:#94a3b8;letter-spacing:.8px;text-transform:uppercase;">সদস্য প্রোফাইল</div>
+      <button class="mp-btn mp-btn-print" onclick="printMemberStatement()" title="স্টেটমেন্ট প্রিন্ট করুন">
+        <span>🖨</span> প্রিন্ট
+      </button>
+    </div>
+
+    <!-- ── Profile Header ── -->
+    <div id="mp-header-bg">
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div id="mp-avatar">?</div>
+        <div style="flex:1;min-width:0;">
+          <h2 id="mp-name">—</h2>
+          <div class="mp-meta">
+            <span style="background:rgba(255,255,255,0.15);border-radius:20px;padding:2px 10px;font-size:11px;">🆔 <span id="mp-code">—</span></span>
+          </div>
+          <div class="mp-meta" id="mp-phone-wrap" style="display:none;">
+            <span>📱</span><span id="mp-phone">—</span>
+          </div>
+          <div class="mp-meta" id="mp-address-wrap" style="display:none;">
+            <span>📍</span><span id="mp-address">—</span>
+          </div>
+          <div class="mp-meta" id="mp-father-wrap" style="display:none;">
+            <span>👨</span><span id="mp-father-name">—</span>
+          </div>
+          <div class="mp-meta" id="mp-dob-wrap" style="display:none;">
+            <span>🎂</span><span id="mp-dob">—</span>
+          </div>
+          <div class="mp-meta" id="mp-nid-wrap" style="display:none;">
+            <span>🪪</span><span id="mp-nid">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── নমিনির তথ্য (থাকলে) ── -->
+    <div id="mp-nominee-box" style="display:none;margin:0 16px 12px;background:#f0fdfa;border:1.5px solid #99f6e4;border-radius:14px;padding:12px 14px;">
+        <div style="font-size:12px;font-weight:800;color:#0f766e;margin-bottom:6px;display:flex;align-items:center;gap:5px;">👤 নমিনির তথ্য</div>
+        <div style="font-size:12.5px;color:#134e4a;line-height:1.7;">
+            <div><b>নাম:</b> <span id="mp-nominee-name">—</span></div>
+            <div id="mp-nominee-phone-row"><b>মোবাইল:</b> <span id="mp-nominee-phone">—</span></div>
+            <div id="mp-nominee-relation-row"><b>সম্পর্ক:</b> <span id="mp-nominee-relation">—</span></div>
+        </div>
+    </div>
+
+    <!-- ── Summary Cards ── -->
+    <div id="mp-cards-row">
+      <!-- সঞ্চয় কার্ড -->
+      <div class="mp-card">
+        <div class="mp-card-icon">💰</div>
+        <div class="mp-card-label">মোট সঞ্চয়</div>
+        <div class="mp-card-value mp-card-savings" id="mp-total-savings">৳ 0</div>
+      </div>
+      <!-- লাভ/ক্ষতি কার্ড -->
+      <div class="mp-card">
+        <div class="mp-card-icon" id="mp-pl-icon">📈</div>
+        <div class="mp-card-label">লাভ/ক্ষতি</div>
+        <div class="mp-card-value" id="mp-profit-loss">৳ 0</div>
+      </div>
+      <!-- মোট ব্যালেন্স কার্ড -->
+      <div class="mp-card">
+        <div class="mp-card-icon">💼</div>
+        <div class="mp-card-label">মোট ব্যালেন্স</div>
+        <div class="mp-card-value mp-card-savings" id="mp-total-balance">৳ 0</div>
+      </div>
+    </div>
+
+    <!-- ── Transaction Ledger Table ── -->
+    <div id="mp-ledger-box">
+      <div id="mp-ledger-header">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:1.1rem;">📋</span>
+          <span style="font-size:13px;font-weight:800;color:#1e293b;">লেনদেনের সম্পূর্ণ ইতিহাস</span>
+        </div>
+        <span id="mp-txn-count" style="font-size:11px;font-weight:700;color:#64748b;background:#f1f5f9;padding:3px 12px;border-radius:20px;"></span>
+      </div>
+
+      <div id="mp-ledger-scroll">
+        <table id="mp-ledger-table">
+          <thead>
+            <tr>
+              <th>তারিখ ও সময়</th>
+              <th>বিবরণের ধরন</th>
+              <th class="th-right" style="color:#86efac;">জমা (৳)</th>
+              <th class="th-right" style="color:#fca5a5;">উত্তোলন (৳)</th>
+              <th class="th-right" style="color:#bae6fd;">ব্যালেন্স (৳)</th>
+            </tr>
+          </thead>
+          <tbody id="member-profile-ledger">
+            <tr>
+              <td colspan="5">
+                <div id="mp-loading-row">
+                  <div style="display:inline-block;width:30px;height:30px;border:3px solid #e2e8f0;border-top-color:#3949ab;border-radius:50%;animation:fa-spin .8s linear infinite;vertical-align:middle;margin-right:8px;"></div>
+                  লোড হচ্ছে...
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div id="mp-empty-row">
+          <div style="font-size:2rem;margin-bottom:10px;">📭</div>
+          কোনো লেনদেনের ইতিহাস পাওয়া যায়নি।
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /#mp-panel -->
+</div><!-- /#member-profile-modal -->
+
+
+<!-- =====================================================
+     ✅ সঞ্চয় জমার সফলতা পপআপ
+     দেখাবে: লেনদেন সফল হলে স্বয়ংক্রিয়ভাবে
+===================================================== -->
+<div id="deposit-success-modal"
+     style="display:none; position:fixed; inset:0;
+            background:rgba(0,0,0,0.55); z-index:9999;
+            align-items:center; justify-content:center; padding:16px;">
+  <div style="background:#fff; width:100%; max-width:340px;
+              border-radius:24px; padding:28px 20px;
+              text-align:center; box-shadow:0 8px 40px rgba(0,0,0,0.22);
+              animation:dsm-pop .28s cubic-bezier(.34,1.56,.64,1);">
+
+    <!-- ✅ সবুজ চেকমার্ক আইকন -->
+    <div style="margin-bottom:14px;">
+      <div style="width:68px; height:68px;
+                  background:linear-gradient(135deg,#d1fae5,#6ee7b7);
+                  border-radius:50%; display:flex; align-items:center;
+                  justify-content:center; margin:0 auto;
+                  box-shadow:0 4px 16px rgba(16,185,129,.25);">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+          <circle cx="18" cy="18" r="18" fill="#10b981"/>
+          <path d="M9 18l7 7 11-13"
+                stroke="#fff" stroke-width="2.8"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- শিরোনাম -->
+    <h3 style="font-size:18px; font-weight:800; color:#065f46; margin:0 0 8px 0;">
+      লেনদেন সম্পন্ন হয়েছে!
+    </h3>
+
+    <!-- বিস্তারিত বার্তা -->
+    <p id="deposit-success-msg"
+       style="font-size:14px; color:#374151; margin:0 0 22px 0;
+              line-height:1.7; background:#f0fdf4;
+              border-radius:12px; padding:12px 14px; font-weight:500;">
+    </p>
+
+    <!-- বাটন সারি -->
+    <div style="display:flex; gap:10px;">
+
+      <!-- হোয়াটসঅ্যাপ বাটন -->
+      <button onclick="sendDepositWhatsApp()"
+              style="flex:1; background:#25d366; color:#fff; border:none;
+                     border-radius:14px; padding:13px 8px; font-size:13px;
+                     font-weight:700; cursor:pointer; font-family:inherit;
+                     display:flex; align-items:center; justify-content:center; gap:6px;
+                     box-shadow:0 2px 8px rgba(37,211,102,.3); transition:.15s;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+        </svg>
+        হোয়াটসঅ্যাপে পাঠান
+      </button>
+
+      <!-- বন্ধ করুন বাটন -->
+      <button onclick="closeDepositSuccessModal()"
+              style="flex:1; background:#f1f5f9; color:#374151; border:none;
+                     border-radius:14px; padding:13px 8px; font-size:13px;
+                     font-weight:700; cursor:pointer; font-family:inherit; transition:.15s;">
+        বন্ধ করুন
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes dsm-pop {
+  from { opacity:0; transform:scale(.88) translateY(16px); }
+  to   { opacity:1; transform:scale(1) translateY(0); }
+}
+</style>
+
+<script>
+/* =====================================================
+   সঞ্চয় জমার সফলতা পপআপ — লজিক
+   ===================================================== */
+
+// শেষ জমার তথ্য সংরক্ষণ
+let _lastDeposit = { name: '', amount: 0 };
+
+/**
+ * মূল submitQuickDeposit-এর র‍্যাপার।
+ * বাটনের onclick এখন এটি কল করে।
+ */
+function handleQuickDepositSubmit() {
+    const memberName = (document.getElementById('qd-member-name')?.value || '').trim();
+    const amount     = parseFloat(document.getElementById('qd-amount')?.value) || 0;
+
+    // বেসিক ভ্যালিডেশন না থাকলে সরাসরি মূল ফাংশন চালাও
+    if (!memberName || amount <= 0) {
+        if (typeof submitQuickDeposit === 'function') submitQuickDeposit();
+        return;
+    }
+
+    _lastDeposit = { name: memberName, amount: amount };
+
+    // মডাল বন্ধ হওয়া পর্যবেক্ষণ → সাফল্যের ইঙ্গিত
+    const modal = document.getElementById('quick-deposit-modal');
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(m) {
+            if (m.type === 'attributes' && m.attributeName === 'class') {
+                if (modal.classList.contains('hidden')) {
+                    observer.disconnect();
+                    // ছোট্ট বিলম্বে পপআপ দেখাও
+                    setTimeout(function() {
+                        _showDepositSuccess(_lastDeposit.name, _lastDeposit.amount);
+                    }, 180);
+                }
+            }
+        });
+    });
+    observer.observe(modal, { attributes: true });
+
+    // মূল ফাংশন চালাও
+    if (typeof submitQuickDeposit === 'function') submitQuickDeposit();
+}
+
+/** পপআপ দেখানোর ফাংশন */
+function _showDepositSuccess(name, amount) {
+    // বাংলা সংখ্যায় ফরম্যাট
+    const formatted = _toBanglaNumber(amount.toLocaleString());
+    document.getElementById('deposit-success-msg').textContent =
+        name + '\u2060-এর অ্যাকাউন্টে ' + formatted + ' টাকা জমা হয়েছে।';
+    document.getElementById('deposit-success-modal').style.display = 'flex';
+}
+
+/** পপআপ বন্ধ */
+function closeDepositSuccessModal() {
+    document.getElementById('deposit-success-modal').style.display = 'none';
+}
+
+/** হোয়াটসঅ্যাপে বার্তা পাঠান */
+function sendDepositWhatsApp() {
+    const name      = _lastDeposit.name;
+    const formatted = _toBanglaNumber(_lastDeposit.amount.toLocaleString());
+    const msg =
+        '✅ লেনদেন সম্পন্ন হয়েছে!\n\n' +
+        name + '-এর অ্যাকাউন্টে ' + formatted + ' টাকা সফলভাবে জমা হয়েছে।\n\n' +
+        'সমিতিতে আস্থা রাখার জন্য ধন্যবাদ।';
+    window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+}
+
+/** ইংরেজি সংখ্যা → বাংলা সংখ্যা */
+function _toBanglaNumber(str) {
+    const map = {'0':'০','1':'১','2':'২','3':'৩','4':'৪',
+                 '5':'৫','6':'৬','7':'৭','8':'৮','9':'৯'};
+    return String(str).replace(/[0-9]/g, function(d){ return map[d]; });
+}
+</script>
+</body>
+</html>
